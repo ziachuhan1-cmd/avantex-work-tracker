@@ -1,0 +1,589 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Avantex Work Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div>
+            <p>Avantex</p>
+            <h1>Work Tracker</h1>
+          </div>
+        </div>
+
+        <div class="workspace-switcher" id="workspaceSwitcher">
+          <button class="workspace-trigger" id="workspaceMenuBtn" type="button" aria-expanded="false" aria-controls="workspaceMenu">
+            <span class="workspace-avatar" id="workspaceAvatar">A</span>
+            <span class="workspace-trigger-copy">
+              <strong id="workspaceTriggerName">Workspace</strong>
+              <small id="workspaceTriggerRole">Free Workspace</small>
+            </span>
+            <span class="workspace-caret" aria-hidden="true">⌄</span>
+          </button>
+          <div class="workspace-menu" id="workspaceMenu" hidden>
+            <div class="workspace-menu-head">
+              <span class="workspace-avatar large" id="workspaceMenuAvatar">A</span>
+              <div>
+                <strong id="workspaceMenuName">Workspace</strong>
+                <small id="workspaceMenuMeta">Free Workspace</small>
+              </div>
+            </div>
+            <div class="workspace-menu-actions">
+              <button type="button" data-workspace-action="settings">Settings</button>
+              <button type="button" data-workspace-action="people">People</button>
+            </div>
+            <div class="workspace-menu-list" id="workspaceMenuList"></div>
+            <button class="workspace-create-button" type="button" data-workspace-action="create">+ Create Workspace</button>
+          </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="Sections">
+          <button class="nav-tab is-active" data-view="dashboard" type="button">
+            <span>Dashboard</span>
+          </button>
+          <button class="nav-tab" data-view="attendance" type="button">
+            <span>Attendance</span>
+          </button>
+          <button class="nav-tab" data-view="work" type="button">
+            <span>Daily Work Tracker</span>
+          </button>
+          <button class="nav-tab" data-view="team" type="button">
+            <span>Team Members</span>
+          </button>
+          <button class="nav-tab" data-view="reports" type="button">
+            <span>Reports</span>
+          </button>
+          <button class="nav-tab admin-only" data-view="admin" type="button">
+            <span>Admin Controls</span>
+          </button>
+        </nav>
+
+        <div class="side-summary">
+          <span>Today</span>
+          <strong id="sideToday">Today</strong>
+          <small id="sideDate"></small>
+          <small id="syncStatus">Not synced</small>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Team attendance and work management</p>
+            <h2 id="viewTitle">Dashboard</h2>
+          </div>
+          <div class="topbar-actions">
+            <select class="workspace-select" id="workspaceSelect" aria-label="Workspace"></select>
+            <span class="session-pill" id="sessionPill">Offline</span>
+            <button class="icon-button" id="refreshBtn" type="button" title="Refresh data" aria-label="Refresh data">&#10227;</button>
+            <div class="profile-menu-wrap" id="profileMenuWrap">
+              <button class="profile-trigger" id="profileMenuBtn" type="button" aria-label="Open profile menu" aria-expanded="false">
+                <span class="profile-avatar" id="profileAvatar">A</span>
+                <span class="profile-online-dot"></span>
+              </button>
+              <div class="profile-menu" id="profileMenu" hidden>
+                <div class="profile-menu-head">
+                  <span class="profile-avatar large" id="profileMenuAvatar">A</span>
+                  <div>
+                    <strong id="profileMenuName">Account</strong>
+                    <small id="profileMenuEmail">Offline</small>
+                    <span id="profileMenuStatus">Online</span>
+                  </div>
+                </div>
+                <button class="profile-menu-item" type="button" data-profile-action="dashboard">My Dashboard</button>
+                <button class="profile-menu-item" type="button" data-profile-action="people">View People</button>
+                <button class="profile-menu-item" type="button" data-profile-action="settings">Workspace Settings</button>
+                <button class="profile-menu-item" type="button" data-profile-action="refresh">Refresh</button>
+                <button class="profile-menu-item danger-text" id="signOutBtn" type="button" data-profile-action="logout">Log out</button>
+              </div>
+            </div>
+            <button class="icon-button" id="exportJsonBtn" type="button" title="Export backup" aria-label="Export backup">DL</button>
+            <label class="icon-button file-button" title="Import backup" aria-label="Import backup">
+              UP
+              <input id="importJsonInput" type="file" accept="application/json">
+            </label>
+            <button class="icon-button danger" id="clearDataBtn" type="button" title="Clear all data" aria-label="Clear all data">X</button>
+          </div>
+        </header>
+
+        <section class="panel workspace-setup" id="workspaceSetup">
+          <div class="panel-head">
+            <div>
+              <span class="section-kicker">Workspace</span>
+              <h3>Create Your Team Space</h3>
+            </div>
+          </div>
+          <form class="form-stack compact-form" id="workspaceForm">
+            <label>
+              Workspace Name
+              <input id="workspaceName" type="text" placeholder="Avantex Work Tracker" required>
+            </label>
+            <button class="primary-button" type="submit">Create Workspace</button>
+          </form>
+        </section>
+
+        <section class="view is-active" id="dashboardView" data-title="Dashboard">
+          <div class="metric-grid">
+            <article class="metric">
+              <span>Current Day</span>
+              <strong id="metricDay">-</strong>
+              <small id="metricDate">-</small>
+            </article>
+            <article class="metric admin-metric">
+              <span>Present Today</span>
+              <strong id="metricPresent">0</strong>
+            </article>
+            <article class="metric admin-metric">
+              <span>Offline Today</span>
+              <strong id="metricOffline">0</strong>
+            </article>
+            <article class="metric admin-metric">
+              <span>Total Members</span>
+              <strong id="metricTotalMembers">0</strong>
+            </article>
+            <article class="metric admin-metric">
+              <span>On Break</span>
+              <strong id="metricBreak">0</strong>
+            </article>
+            <article class="metric admin-metric">
+              <span>Work Items Today</span>
+              <strong id="metricVideos">0</strong>
+            </article>
+            <article class="metric">
+              <span>Hours Logged</span>
+              <strong id="metricHours">0h</strong>
+            </article>
+          </div>
+
+          <div class="content-grid">
+            <section class="panel wide">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Live</span>
+                  <h3>Team Status</h3>
+                </div>
+                <button class="small-button editor-only-action" data-view-jump="attendance" type="button">Open</button>
+              </div>
+              <div class="status-list" id="dashboardStatus"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Production</span>
+                  <h3>Today's Work</h3>
+                </div>
+                <button class="small-button editor-only-action" data-view-jump="work" type="button">Add</button>
+              </div>
+              <div class="compact-list" id="dashboardWork"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="attendanceView" data-title="Attendance">
+          <div class="split-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Punch</span>
+                  <h3>Attendance Actions</h3>
+                </div>
+              </div>
+              <form class="form-stack" id="attendanceForm">
+                <label>
+                  Team Member
+                  <select id="attendancePerson" required></select>
+                </label>
+                <label>
+                  Action
+                  <select id="attendanceAction" required>
+                    <option value="in">In</option>
+                    <option value="break_start">Break Start</option>
+                    <option value="break_end">Break End</option>
+                    <option value="out">Out</option>
+                  </select>
+                </label>
+                <label>
+                  Time
+                  <input id="attendanceTime" type="datetime-local" required>
+                  <small class="field-hint" id="attendanceSelectedDay">-</small>
+                </label>
+                <label>
+                  Note
+                  <input id="attendanceNote" type="text" placeholder="Late, meeting, personal break">
+                </label>
+                <button class="primary-button" type="submit">Save Attendance</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker" id="attendanceDayLabel">Today</span>
+                  <h3>Attendance Log</h3>
+                </div>
+              </div>
+              <div class="timeline" id="attendanceLog"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="workView" data-title="Daily Work Tracker">
+          <div class="split-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Update</span>
+                  <h3>Daily Work Entry</h3>
+                </div>
+              </div>
+              <form class="form-stack" id="workForm">
+                <label>
+                  Team Member
+                  <select id="workPerson" required></select>
+                </label>
+                <label>
+                  Date
+                  <input id="workDate" type="date" required>
+                  <small class="field-hint" id="workSelectedDay">-</small>
+                </label>
+                <div class="input-row">
+                  <label>
+                    Completed Tasks
+                    <input id="workLongVideos" type="number" min="0" value="0">
+                  </label>
+                  <label>
+                    Follow-ups
+                    <input id="workShorts" type="number" min="0" value="0">
+                  </label>
+                </div>
+                <div class="input-row">
+                  <label>
+                    Reviews
+                    <input id="workThumbnails" type="number" min="0" value="0">
+                  </label>
+                  <label>
+                    Other Tasks
+                    <input id="workOtherCount" type="number" min="0" value="0">
+                  </label>
+                </div>
+                <label>
+                  Task Details
+                  <textarea id="workDetails" rows="4" placeholder="Tasks completed, client updates, pending work, links"></textarea>
+                </label>
+                <label>
+                  Status
+                  <select id="workStatus">
+                    <option value="completed">Completed</option>
+                    <option value="in_progress">In progress</option>
+                    <option value="revision">Revision</option>
+                    <option value="blocked">Blocked</option>
+                  </select>
+                </label>
+                <button class="primary-button" type="submit">Save Work Update</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker" id="workDayLabel">Today</span>
+                  <h3>Production Log</h3>
+                </div>
+              </div>
+              <div class="work-list" id="workLog"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="teamView" data-title="Team Members">
+          <div class="split-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Workspace</span>
+                  <h3 id="workspaceNameLabel">Workspace</h3>
+                </div>
+                <span class="session-pill" id="workspaceRoleLabel">role</span>
+              </div>
+              <form class="form-stack invite-form" id="inviteForm">
+                <label>
+                  Member Email
+                  <input id="inviteEmail" type="email" placeholder="editor@example.com" required>
+                </label>
+                <label>
+                  Role
+                  <select id="inviteRole">
+                    <option value="admin">Admin</option>
+                    <option value="member" selected>Member</option>
+                    <option value="video-editor">Video Editor</option>
+                    <option value="thumbnail-designer">Thumbnail Designer</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+                <label class="invite-custom-role" id="inviteCustomRoleWrap" hidden>
+                  Custom Role Tag
+                  <input id="inviteCustomRole" type="text" placeholder="Operations Lead">
+                </label>
+                <button class="primary-button" type="submit">Create Email Invite</button>
+              </form>
+              <div class="invite-list" id="inviteList"></div>
+            </section>
+
+            <section class="panel manual-member-panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Manual</span>
+                  <h3>Add Team Member</h3>
+                </div>
+              </div>
+              <form class="form-stack" id="teamForm">
+                <label>
+                  Team Member Name
+                  <input id="teamName" type="text" placeholder="New team member name" required>
+                </label>
+                <label>
+                  Shift
+                  <input id="teamShift" type="text" placeholder="10:00 AM - 7:00 PM">
+                </label>
+                <button class="primary-button" type="submit">Add Member</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Roster</span>
+                  <h3>Team Members</h3>
+                </div>
+              </div>
+              <div class="team-list" id="teamList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="reportsView" data-title="Reports">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="section-kicker">Filter</span>
+                <h3>Daily Report</h3>
+              </div>
+              <button class="small-button" id="exportCsvBtn" type="button">CSV</button>
+            </div>
+
+            <div class="report-filters">
+              <label>
+                Date
+                <input id="reportDate" type="date">
+              </label>
+              <label>
+                Team Member
+                <select id="reportPerson"></select>
+              </label>
+            </div>
+            <div class="report-day" id="reportDayLabel"></div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Team Member</th>
+                    <th>Role</th>
+                    <th>Day</th>
+                    <th>Date</th>
+                    <th>In</th>
+                    <th>Break</th>
+                    <th>Out</th>
+                    <th>Hours</th>
+                    <th>Tasks</th>
+                    <th>Follow-ups</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="reportRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="adminView" data-title="Admin Controls">
+          <div class="content-grid">
+            <section class="panel wide">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Records</span>
+                  <h3>Edit Or Delete Entries</h3>
+                </div>
+              </div>
+              <div class="report-filters">
+                <label>
+                  Date
+                  <input id="adminDate" type="date">
+                </label>
+                <label>
+                  Team Member
+                  <select id="adminPerson"></select>
+                </label>
+              </div>
+              <div class="admin-records">
+                <div>
+                  <h4>Attendance Entries</h4>
+                  <div class="admin-list" id="adminAttendanceList"></div>
+                </div>
+                <div>
+                  <h4>Daily Work Entries</h4>
+                  <div class="admin-list" id="adminWorkList"></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Danger</span>
+                  <h3>Bulk Delete</h3>
+                </div>
+              </div>
+              <form class="form-stack" id="bulkDeleteForm">
+                <label>
+                  Team Member
+                  <select id="bulkEditor"></select>
+                </label>
+                <div class="input-row">
+                  <label>
+                    From
+                    <input id="bulkStartDate" type="date" required>
+                  </label>
+                  <label>
+                    To
+                    <input id="bulkEndDate" type="date" required>
+                  </label>
+                </div>
+                <label>
+                  Confirm Text
+                  <input id="bulkConfirm" type="text" placeholder="DELETE AVANTEX RECORDS">
+                </label>
+                <div class="stacked-actions">
+                  <button class="ghost-button danger-text" id="deleteAttendanceRangeBtn" type="button">Delete Attendance</button>
+                  <button class="ghost-button danger-text" id="deleteWorkRangeBtn" type="button">Delete Daily Work</button>
+                  <button class="ghost-button danger-text" id="deleteAllRangeBtn" type="button">Delete Both</button>
+                </div>
+              </form>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="auth-gate" id="authGate">
+      <section class="auth-landing">
+        <header class="auth-nav">
+          <div class="brand auth-brand">
+            <div class="brand-mark" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div>
+              <p>Avantex</p>
+              <h1>Work Tracker</h1>
+            </div>
+          </div>
+          <div class="auth-nav-actions">
+            <button class="auth-link-button" type="button" data-auth-mode="login">Login</button>
+            <button class="auth-dark-button" type="button" data-auth-mode="signup">Sign Up</button>
+          </div>
+        </header>
+
+        <div class="auth-hero">
+          <button class="auth-back" id="authBackBtn" type="button">Back to overview</button>
+          <div class="auth-page-copy">
+            <div class="product-pill">Secure workspace access</div>
+            <h2 id="authPageHeadline">Create your team account.</h2>
+            <p>Use your company email to join an existing workspace invitation or create a new workspace for your own team.</p>
+          </div>
+          <div class="auth-copy">
+            <div class="product-pill">Workforce management for modern teams</div>
+            <h2>Run attendance, tasks, and team updates from one workspace.</h2>
+            <p>Built for software houses, agencies, and operations teams that need clear check-ins, daily output, roles, and reports without messy spreadsheets.</p>
+            <ul class="auth-points">
+              <li><span>&#10003;</span> Invite staff, managers, and admins by email</li>
+              <li><span>&#10003;</span> Track attendance, breaks, output, and history</li>
+              <li><span>&#10003;</span> Keep every company workspace private and secure</li>
+            </ul>
+            <div class="hero-actions">
+              <button class="hero-cta" id="getStartedBtn" type="button">Start your workspace</button>
+              <small>Create an account, then invite your team.</small>
+            </div>
+          </div>
+
+          <div class="auth-preview" aria-hidden="true">
+            <div class="preview-shell">
+              <div class="preview-sidebar">
+                <strong>Avantex</strong>
+                <span>Dashboard</span>
+                <span>Attendance</span>
+                <span>Daily Updates</span>
+                <span>Reports</span>
+              </div>
+              <div class="preview-main">
+                <div class="preview-top">
+                  <span>Operations Team</span>
+                  <span>Today</span>
+                </div>
+                <div class="preview-row done"><strong>Olivia Parker</strong><span>In Office</span><small>8 tasks</small></div>
+                <div class="preview-row progress"><strong>Daniel Brooks</strong><span>On Break</span><small>5 updates</small></div>
+                <div class="preview-row review"><strong>Emma Wilson</strong><span>Review</span><small>3 reports</small></div>
+                <div class="preview-task"><span>Daily summary</span><strong>16 updates submitted</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <section class="auth-panel">
+            <div class="auth-tabs">
+              <button class="is-active" type="button" data-auth-mode="signup">Sign Up</button>
+              <button type="button" data-auth-mode="login">Login</button>
+            </div>
+            <h3 id="authModeTitle">Create your account</h3>
+            <p id="authModeCopy">Start with your email. After login, create a workspace or accept an invite.</p>
+            <form class="form-stack" id="loginForm">
+              <label id="authNameWrap">
+                Full Name
+                <input id="signupName" type="text" autocomplete="name" placeholder="Your name">
+              </label>
+              <label>
+                Email
+                <input id="loginEmail" type="email" autocomplete="email" required>
+              </label>
+              <label>
+                Password
+                <input id="loginPassword" type="password" autocomplete="current-password" required>
+              </label>
+              <button class="primary-button" id="authSubmitBtn" type="submit">Create Account</button>
+              <button class="ghost-button" id="forgotPasswordBtn" type="button">Forgot / Set Password</button>
+              <button class="ghost-button" id="resendConfirmBtn" type="button">Resend Confirmation Email</button>
+              <p class="auth-switch" id="authSwitchText">Already have an account? <button type="button" data-auth-mode="login">Login</button></p>
+              <p class="auth-message" id="authMessage">Use the same email address if you received an invite.</p>
+            </form>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js?v=20260616-emailjs"></script>
+  </body>
+</html>
+
