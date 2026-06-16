@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
@@ -105,10 +105,10 @@
                 <button class="profile-menu-item" type="button" data-profile-action="people">View People</button>
                 <button class="profile-menu-item" type="button" data-profile-action="settings">Workspace Settings</button>
                 <button class="profile-menu-item" type="button" data-profile-action="refresh">Refresh</button>
+                <button class="profile-menu-item" type="button" data-profile-action="theme">Switch Theme</button>
                 <button class="profile-menu-item danger-text" id="signOutBtn" type="button" data-profile-action="logout">Log out</button>
               </div>
             </div>
-            <button class="icon-button" id="exportJsonBtn" type="button" title="Export backup" aria-label="Export backup">DL</button>
             <label class="icon-button file-button" title="Import backup" aria-label="Import backup">
               UP
               <input id="importJsonInput" type="file" accept="application/json">
@@ -165,6 +165,7 @@
               <strong id="metricHours">0h</strong>
             </article>
           </div>
+          <div class="access-notice" id="removedNotice" hidden></div>
 
           <div class="content-grid">
             <section class="panel wide">
@@ -385,6 +386,24 @@
 
             <div class="report-filters">
               <label>
+                Period
+                <select id="reportPreset">
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                  <option value="year">This Year</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              <label>
+                Start Date
+                <input id="reportStartDate" type="date">
+              </label>
+              <label>
+                End Date
+                <input id="reportEndDate" type="date">
+              </label>
+              <label class="legacy-report-date">
                 Date
                 <input id="reportDate" type="date">
               </label>
