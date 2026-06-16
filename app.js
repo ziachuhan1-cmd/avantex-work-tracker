@@ -2052,10 +2052,10 @@ async function cancelInvite(inviteId) {
   workspaceInvites = workspaceInvites.filter((invite) => invite.id !== inviteId);
   renderWorkspacePanel();
   if (usingSupabase) {
-    const deleteResult = await supabaseClient.from("workspace_invites").delete().eq("id", inviteId);
-    if (deleteResult.error) {
-      const { error } = await supabaseClient.rpc("cancel_workspace_invite", { invite_id: inviteId });
-      if (error) showToast(error.message);
+    const rpcResult = await supabaseClient.rpc("cancel_workspace_invite", { invite_id: inviteId });
+    if (rpcResult.error) {
+      const deleteResult = await supabaseClient.from("workspace_invites").delete().eq("id", inviteId);
+      if (deleteResult.error) return showToast(rpcResult.error.message || deleteResult.error.message);
     }
     await refreshRemote("Invite cancelled");
     return;
@@ -2068,15 +2068,18 @@ async function removeTeamMember(personId) {
   if (!person) return;
   if (!confirm(`Remove ${person.name} from this workspace? Old attendance and work records will stay saved.`)) return;
   if (usingSupabase) {
-    const editorUpdate = await supabaseClient.from("editors").update({ active: false }).eq("id", person.id);
-    if (editorUpdate.error) return showToast(editorUpdate.error.message);
-    if (person.userId) {
-      const memberUpdate = await supabaseClient
-        .from("memberships")
-        .update({ active: false })
-        .eq("workspace_id", currentWorkspace.id)
-        .eq("user_id", person.userId);
-      if (memberUpdate.error) console.warn("Membership remove failed", memberUpdate.error);
+    const rpcResult = await supabaseClient.rpc("remove_workspace_member", { member_editor_id: person.id });
+    if (rpcResult.error) {
+      const editorUpdate = await supabaseClient.from("editors").update({ active: false }).eq("id", person.id);
+      if (editorUpdate.error) return showToast(rpcResult.error.message || editorUpdate.error.message);
+      if (person.userId) {
+        const memberUpdate = await supabaseClient
+          .from("memberships")
+          .update({ active: false })
+          .eq("workspace_id", currentWorkspace.id)
+          .eq("user_id", person.userId);
+        if (memberUpdate.error) return showToast(memberUpdate.error.message);
+      }
     }
     state.team = state.team.map((item) => item.id === person.id ? { ...item, active: false } : item);
     await refreshRemote(`${person.name} removed`);
