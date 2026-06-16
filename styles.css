@@ -4,12 +4,29 @@
   --line: #dce3ea;
   --bg: #f5f7f9;
   --panel: #ffffff;
+  --soft-panel: #fbfcfd;
   --blue: #1d5fd1;
   --green: #11845b;
   --amber: #b56b00;
   --red: #c43432;
   --violet: #6952b8;
   --shadow: 0 12px 30px rgba(24, 33, 47, 0.08);
+}
+
+:root[data-theme="dark"] {
+  --ink: #eef4fb;
+  --muted: #9ca9ba;
+  --line: #263342;
+  --bg: #0d1218;
+  --panel: #141b24;
+  --soft-panel: #111820;
+  --blue: #6da2ff;
+  --green: #3dd39a;
+  --amber: #f0b84e;
+  --red: #ff746f;
+  --violet: #a99cff;
+  --shadow: 0 18px 38px rgba(0, 0, 0, 0.28);
+  color-scheme: dark;
 }
 
 * {
@@ -469,6 +486,38 @@ button {
   background: rgba(255, 255, 255, 0.08);
 }
 
+:root[data-theme="dark"] .main,
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .metric,
+:root[data-theme="dark"] .person-row,
+:root[data-theme="dark"] .work-card,
+:root[data-theme="dark"] .team-card,
+:root[data-theme="dark"] .invite-row,
+:root[data-theme="dark"] .timeline-item,
+:root[data-theme="dark"] .admin-item,
+:root[data-theme="dark"] .session-pill,
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .icon-button,
+:root[data-theme="dark"] .small-button,
+:root[data-theme="dark"] .ghost-button,
+:root[data-theme="dark"] .table-wrap {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .person-row,
+:root[data-theme="dark"] .work-card,
+:root[data-theme="dark"] .team-card,
+:root[data-theme="dark"] .invite-row,
+:root[data-theme="dark"] .timeline-item,
+:root[data-theme="dark"] .admin-item,
+:root[data-theme="dark"] .empty {
+  background: var(--soft-panel);
+}
+
 .session-pill {
   display: inline-flex;
   align-items: center;
@@ -719,6 +768,31 @@ textarea:focus {
 .invite-list {
   display: grid;
   gap: 10px;
+}
+
+#dashboardWork {
+  max-height: 430px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.access-notice {
+  margin: 14px 0 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(196, 52, 50, 0.25);
+  border-radius: 8px;
+  background: rgba(196, 52, 50, 0.08);
+  color: var(--red);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.form-stack.is-disabled {
+  opacity: 0.62;
+}
+
+.legacy-report-date {
+  display: none;
 }
 
 .invite-custom-role[hidden] {
