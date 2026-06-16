@@ -619,8 +619,12 @@ function inviteTokenFromUrl() {
   return new URLSearchParams(window.location.search).get("invite") || localStorage.getItem(INVITE_KEY);
 }
 
+function inviteTokenOnlyFromUrl() {
+  return new URLSearchParams(window.location.search).get("invite");
+}
+
 function rememberInviteToken() {
-  const token = new URLSearchParams(window.location.search).get("invite");
+  const token = inviteTokenOnlyFromUrl();
   if (token) localStorage.setItem(INVITE_KEY, token);
   return token || localStorage.getItem(INVITE_KEY);
 }
@@ -644,7 +648,7 @@ async function resolveAuthUser(authData = {}) {
 }
 
 async function acceptPendingInvite() {
-  const inviteToken = inviteTokenFromUrl();
+  const inviteToken = inviteTokenOnlyFromUrl() || localStorage.getItem(INVITE_KEY);
   if (!inviteToken) return { accepted: false };
 
   const inviteResult = await supabaseClient.rpc("accept_workspace_invite", { invite_token: inviteToken });
@@ -655,6 +659,12 @@ async function acceptPendingInvite() {
       cleanInviteFromAddressBar();
       clearPendingInvite();
       showToast("Invite link was already used or expired. Loading your workspaces.");
+      return { accepted: false, ignored: true };
+    }
+    if (lowerMessage.includes("already used")) {
+      cleanInviteFromAddressBar();
+      clearPendingInvite();
+      showToast("Invite was already used. Loading your workspace access.");
       return { accepted: false, ignored: true };
     }
     if (lowerMessage.includes("invited email")) {
@@ -788,7 +798,7 @@ function workspaceInitial(name = "") {
 function workspacePlanLabel() {
   if (!currentUser) return "Login required";
   const role = currentMembership()?.role || "member";
-  return `${role} · Free Workspace`;
+  return `${role} Â· Free Workspace`;
 }
 
 function toggleWorkspaceMenu(force) {
