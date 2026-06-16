@@ -565,6 +565,47 @@ function clearPendingInvite() {
   localStorage.removeItem(INVITE_KEY);
 }
 
+function cleanInviteFromAddressBar() {
+  if (new URLSearchParams(window.location.search).has("invite")) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+}
+
+async function resolveAuthUser(authData = {}) {
+  if (authData.user) return authData.user;
+  if (authData.session?.user) return authData.session.user;
+  const userResult = await supabaseClient.auth.getUser();
+  if (userResult.error) throw userResult.error;
+  return userResult.data?.user || userResult.data || null;
+}
+
+async function acceptPendingInvite() {
+  const inviteToken = inviteTokenFromUrl();
+  if (!inviteToken) return { accepted: false };
+
+  const inviteResult = await supabaseClient.rpc("accept_workspace_invite", { invite_token: inviteToken });
+  if (inviteResult.error) {
+    const inviteMessage = inviteResult.error.message || "";
+    const lowerMessage = inviteMessage.toLowerCase();
+    if (lowerMessage.includes("invalid") || lowerMessage.includes("expired")) {
+      cleanInviteFromAddressBar();
+      clearPendingInvite();
+      showToast("Invite link was already used or expired. Loading your workspaces.");
+      return { accepted: false, ignored: true };
+    }
+    if (lowerMessage.includes("invited email")) {
+      throw new Error("Login with the same email address that received this invite.");
+    }
+    throw inviteResult.error;
+  }
+
+  if (inviteResult.data) localStorage.setItem(WORKSPACE_KEY, inviteResult.data);
+  cleanInviteFromAddressBar();
+  clearPendingInvite();
+  showToast("Invite accepted. Workspace opened.");
+  return { accepted: true, workspaceId: inviteResult.data };
+}
+
 function actionLabel(action) {
   return {
     in: "In",
@@ -910,8 +951,9 @@ async function consumeAuthRedirectSession() {
   const userResult = await supabaseClient.auth.getUser();
   if (userResult.error) throw userResult.error;
   passwordRecoveryMode = linkType === "recovery";
-  window.history.replaceState({}, document.title, window.location.pathname + (inviteTokenFromUrl() ? `?invite=${inviteTokenFromUrl()}` : ""));
-  return userResult.data;
+  const pendingInvite = inviteTokenFromUrl();
+  window.history.replaceState({}, document.title, window.location.pathname + (pendingInvite ? `?invite=${pendingInvite}` : ""));
+  return userResult.data?.user || userResult.data;
 }
 
 function showPasswordResetGate(message = "Set a new password to finish account recovery.") {
@@ -935,23 +977,7 @@ async function loadRemoteState(options = {}) {
     role: "editor"
   };
 
-  const inviteToken = inviteTokenFromUrl();
-  if (inviteToken) {
-    const inviteResult = await supabaseClient.rpc("accept_workspace_invite", { invite_token: inviteToken });
-    window.history.replaceState({}, document.title, window.location.pathname);
-    if (inviteResult.error) {
-      const inviteMessage = inviteResult.error.message || "";
-      if (inviteMessage.toLowerCase().includes("invalid") || inviteMessage.toLowerCase().includes("expired")) {
-        showToast("Invite link was already used or expired. Loading your workspaces.");
-      } else {
-        throw inviteResult.error;
-      }
-    } else {
-      if (inviteResult.data) localStorage.setItem(WORKSPACE_KEY, inviteResult.data);
-      clearPendingInvite();
-      showToast("Invite accepted. Workspace opened.");
-    }
-  }
+  await acceptPendingInvite();
 
   const membershipResult = await supabaseClient
     .from("memberships")
@@ -1191,7 +1217,8 @@ async function bootApp() {
     return;
   }
   if (!data.session) {
-    showAuthGate(inviteTokenFromUrl() ? "Login or create account with the invited email to join this workspace." : "");
+    showAuthGate(inviteTokenFromUrl() ? "Login with the invited email to join this workspace." : "");
+    if (inviteTokenFromUrl()) openAuthPage("login", "Login with the same email address that received this invite.");
     return;
   }
   currentUser = currentUser || data.session.user;
@@ -2330,7 +2357,11 @@ function setupEvents() {
         : "Account created. Check email if confirmation is required, then login.";
       return;
     }
-    currentUser = data.user;
+    currentUser = await resolveAuthUser(data);
+    if (!currentUser) {
+      $("#authMessage").textContent = "Login succeeded, but user profile did not load. Refresh and try again.";
+      return;
+    }
     try {
       await loadRemoteState();
       lastSyncedAt = new Date().toISOString();
