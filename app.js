@@ -10,6 +10,7 @@ const EMAILJS_PUBLIC_KEY = "p5VI1lrJJ0QDqcvKR";
 const SESSION_KEY = "avantex-supabase-session";
 const WORKSPACE_KEY = "avantex-current-workspace";
 const INVITE_KEY = "avantex-pending-invite";
+const THEME_KEY = "avantex-theme";
 
 if (!IS_LOCAL_PREVIEW && window.location.hostname !== CANONICAL_HOST) {
   window.location.replace(`${APP_REDIRECT_URL}${window.location.pathname}${window.location.search}${window.location.hash}`);
@@ -40,6 +41,12 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
 const todayKey = () => localDateKey(new Date());
+
+function applyTheme(theme = localStorage.getItem(THEME_KEY) || "light") {
+  const nextTheme = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = nextTheme;
+  localStorage.setItem(THEME_KEY, nextTheme);
+}
 
 function authRedirectUrl() {
   const inviteToken = rememberInviteToken();
@@ -148,6 +155,45 @@ function localDateKey(date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function addDays(dateKey, days) {
+  const date = new Date(`${dateKey}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return localDateKey(date);
+}
+
+function reportRangeFromPreset(preset = $("#reportPreset")?.value || "today") {
+  const today = new Date();
+  const todayDate = todayKey();
+  if (preset === "week") {
+    const start = new Date(today);
+    start.setDate(today.getDate() - today.getDay() + 1);
+    return { start: localDateKey(start), end: todayDate, label: "This Week" };
+  }
+  if (preset === "month") {
+    return { start: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`, end: todayDate, label: "This Month" };
+  }
+  if (preset === "year") {
+    return { start: `${today.getFullYear()}-01-01`, end: todayDate, label: "This Year" };
+  }
+  if (preset === "custom") {
+    const start = $("#reportStartDate")?.value || todayDate;
+    const end = $("#reportEndDate")?.value || start;
+    return { start, end, label: "Custom" };
+  }
+  return { start: todayDate, end: todayDate, label: "Today" };
+}
+
+function datesBetween(startDate, endDate) {
+  const dates = [];
+  if (!startDate || !endDate || startDate > endDate) return dates;
+  let cursor = startDate;
+  while (cursor <= endDate) {
+    dates.push(cursor);
+    cursor = addDays(cursor, 1);
+  }
+  return dates;
 }
 
 function loadState() {
@@ -504,7 +550,18 @@ function reportTeam() {
 
 function ownTeamMember() {
   if (!usingSupabase || !currentUser) return null;
-  return activeTeam().find((person) => person.userId === currentUser.id) || null;
+  return state.team.find((person) => person.userId === currentUser.id) || null;
+}
+
+function ownActiveTeamMember() {
+  const own = ownTeamMember();
+  return own?.active === false ? null : own;
+}
+
+function isRemovedFromWorkspace() {
+  if (!usingSupabase || canManageWorkspace()) return false;
+  const membership = currentMembership();
+  return Boolean(currentWorkspace && membership && membership.active === false);
 }
 
 function visibleTeam() {
@@ -513,10 +570,16 @@ function visibleTeam() {
   return own ? [own] : [];
 }
 
+function actionTeam() {
+  if (!usingSupabase || canManageWorkspace()) return activeTeam();
+  const own = ownActiveTeamMember();
+  return own ? [own] : [];
+}
+
 function canUsePerson(personId) {
   if (!personId) return false;
   if (!usingSupabase || canManageWorkspace()) return true;
-  return visibleTeam().some((person) => person.id === personId);
+  return actionTeam().some((person) => person.id === personId);
 }
 
 function currentMembership() {
@@ -526,7 +589,8 @@ function currentMembership() {
 
 function canManageWorkspace() {
   if (!usingSupabase) return true;
-  return ["owner", "admin"].includes(currentMembership()?.role);
+  const membership = currentMembership();
+  return membership?.active !== false && ["owner", "admin"].includes(membership?.role);
 }
 
 function membershipRoleLabel(role = currentMembership()?.role) {
@@ -688,6 +752,10 @@ function setCurrentInputs() {
   $("#attendanceTime").value = new Date(now - offsetMs).toISOString().slice(0, 16);
   $("#workDate").value = todayKey();
   $("#reportDate").value = todayKey();
+  if ($("#reportStartDate")) $("#reportStartDate").value = todayKey();
+  if ($("#reportEndDate")) $("#reportEndDate").value = todayKey();
+  if ($("#reportStartDate")) $("#reportStartDate").disabled = true;
+  if ($("#reportEndDate")) $("#reportEndDate").disabled = true;
   $("#adminDate").value = todayKey();
   $("#bulkStartDate").value = todayKey();
   $("#bulkEndDate").value = todayKey();
@@ -697,7 +765,7 @@ function setCurrentInputs() {
 function updateDateHints() {
   const attendanceValue = $("#attendanceTime").value;
   const workDate = $("#workDate").value || todayKey();
-  const reportDate = $("#reportDate").value || todayKey();
+  const reportRange = reportRangeFromPreset();
   if (attendanceValue) {
     const attendanceDate = localDateKey(new Date(attendanceValue));
     $("#attendanceSelectedDay").textContent = `${formatDay(attendanceDate)}, ${formatDateOnly(attendanceDate)}`;
@@ -705,7 +773,7 @@ function updateDateHints() {
     $("#attendanceSelectedDay").textContent = "-";
   }
   $("#workSelectedDay").textContent = `${formatDay(workDate)}, ${formatDateOnly(workDate)}`;
-  $("#reportDayLabel").textContent = `Selected report: ${formatDay(reportDate)}, ${formatDateOnly(reportDate)}`;
+  $("#reportDayLabel").textContent = `${reportRange.label}: ${formatDateOnly(reportRange.start)} to ${formatDateOnly(reportRange.end)}`;
 }
 
 function isAdmin() {
@@ -839,6 +907,7 @@ function updateSyncStatus() {
 
 function applyAccessControls() {
   const admin = canManageWorkspace();
+  const removed = isRemovedFromWorkspace();
   document.querySelector('[data-view="attendance"]').style.display = admin ? "none" : "";
   document.querySelector('[data-view="work"]').style.display = admin ? "none" : "";
   document.querySelector('[data-view="team"]').style.display = admin && currentWorkspace ? "" : "none";
@@ -856,7 +925,17 @@ function applyAccessControls() {
   $("#workspaceSetup").style.display = usingSupabase && currentUser && (!currentWorkspace || workspaceCreateOpen) ? "block" : "none";
   $("#clearDataBtn").style.display = admin && !usingSupabase ? "inline-grid" : "none";
   $("#importJsonInput").closest(".file-button").style.display = admin && !usingSupabase ? "inline-grid" : "none";
-  $("#exportJsonBtn").style.display = admin ? "inline-grid" : "none";
+  if ($("#exportJsonBtn")) $("#exportJsonBtn").style.display = "none";
+  $("#attendanceForm").classList.toggle("is-disabled", removed);
+  $("#workForm").classList.toggle("is-disabled", removed);
+  $$("#attendanceForm input, #attendanceForm select, #attendanceForm button, #workForm input, #workForm select, #workForm textarea, #workForm button").forEach((field) => {
+    field.disabled = removed || (!canManageWorkspace() && actionTeam().length === 0);
+  });
+  const removedNotice = $("#removedNotice");
+  if (removedNotice) {
+    removedNotice.hidden = !removed;
+    removedNotice.textContent = removed ? "You have been removed from this workspace by an admin or owner. Your history is still available, but attendance and work updates are disabled until you are added again." : "";
+  }
   if (admin && ($("#attendanceView").classList.contains("is-active") || $("#workView").classList.contains("is-active"))) {
     switchView("dashboard");
   }
@@ -983,7 +1062,6 @@ async function loadRemoteState(options = {}) {
     .from("memberships")
     .select("*")
     .eq("user_id", currentUser.id)
-    .eq("active", true)
     .order("created_at", { ascending: true });
   if (membershipResult.error) throw membershipResult.error;
   workspaceMemberships = membershipResult.data || [];
@@ -1191,6 +1269,7 @@ async function signOut() {
 }
 
 async function bootApp() {
+  applyTheme();
   rememberInviteToken();
   setCurrentInputs();
   setupEvents();
@@ -1244,7 +1323,7 @@ function populateSelects() {
     $("#workspaceSelect").disabled = availableWorkspaces.length <= 1;
   }
 
-  const people = visibleTeam();
+  const people = actionTeam();
   const allPeople = reportTeam();
   const selectedAttendance = $("#attendancePerson").value;
   const selectedWork = $("#workPerson").value;
@@ -1255,6 +1334,8 @@ function populateSelects() {
   const allPersonOptions = allPeople.map((person) => `<option value="${person.id}">${escapeHtml(person.name)} | ${escapeHtml(person.role)}</option>`).join("");
   $("#attendancePerson").innerHTML = personOptions;
   $("#workPerson").innerHTML = personOptions;
+  $("#attendancePerson").disabled = !people.length;
+  $("#workPerson").disabled = !people.length;
   $("#reportPerson").innerHTML = canManageWorkspace() ? `<option value="all">All team members</option>${allPersonOptions}` : allPersonOptions;
   $("#adminPerson").innerHTML = `<option value="all">All team members</option>${allPersonOptions}`;
   $("#bulkEditor").innerHTML = `<option value="all">All team members</option>${allPersonOptions}`;
@@ -1321,7 +1402,7 @@ function renderDashboard() {
   const todayWork = state.work.filter((entry) => entry.date === date && visibleIds.has(entry.personId));
   const totals = sumWork(todayWork);
   const totalMinutes = people.reduce((sum, person) => sum + attendanceSummary(person.id, date).workingMinutes, 0);
-  const totalMembers = canManageWorkspace() ? state.team.length : people.length;
+  const totalMembers = canManageWorkspace() ? activeTeam().length : people.length;
 
   $("#metricDay").textContent = formatDay(date);
   $("#metricDate").textContent = formatDateOnly(date);
@@ -1336,10 +1417,10 @@ function renderDashboard() {
 
   $("#dashboardStatus").innerHTML = people.length
     ? people.map((person) => personStatusRow(person, date)).join("")
-    : emptyState("No team members yet.");
+    : emptyState(isRemovedFromWorkspace() ? "You were removed from this workspace. Your old records remain available in Reports." : "No team members yet.");
 
   $("#dashboardWork").innerHTML = todayWork.length
-    ? todayWork.slice(-5).reverse().map(workCard).join("")
+    ? todayWork.slice().reverse().map(workCard).join("")
     : emptyState("No work updates for today.");
 }
 
@@ -1349,6 +1430,8 @@ function personStatusRow(person, date = todayKey()) {
   const work = sumWork(workFor(person.id, date));
   const quickActions = canManageWorkspace()
     ? `<span class="badge ${status.className}">${status.label}</span>`
+    : person.active === false
+    ? `<span class="badge out">Removed</span>`
     : `
         <span class="badge ${status.className}">${status.label}</span>
         <button type="button" data-quick="${person.id}:in" title="Mark in">In</button>
@@ -1451,6 +1534,7 @@ function renderTeam() {
         </div>
         <div class="team-actions">
           <button class="ghost-button" type="button" data-edit-person="${person.id}">Edit</button>
+          ${person.userId ? `<button class="ghost-button" type="button" data-admin-role="${person.id}:${person.role === "Admin" ? "editor" : "admin"}">${person.role === "Admin" ? "Remove Admin" : "Make Admin"}</button>` : ""}
           <button class="ghost-button danger-text" type="button" data-delete-person="${person.id}">Remove</button>
         </div>
       </article>
@@ -1524,12 +1608,12 @@ function renderAdminControls() {
 }
 
 function renderReports() {
-  const date = $("#reportDate").value || todayKey();
+  const range = reportRangeFromPreset();
   const selectedPerson = $("#reportPerson").value || "all";
   updateDateHints();
-  const rows = reportTeam()
+  const rows = datesBetween(range.start, range.end).flatMap((date) => reportTeam()
     .filter((person) => selectedPerson === "all" || person.id === selectedPerson)
-    .map((person) => reportRow(person, date));
+    .map((person) => reportRow(person, date)));
 
   $("#reportRows").innerHTML = rows.length
     ? rows.join("")
@@ -1577,7 +1661,7 @@ async function addAttendance(personId, action, time = new Date().toISOString(), 
     return;
   }
   if (!canUsePerson(personId)) {
-    showToast("You can only update your own attendance");
+    showToast(isRemovedFromWorkspace() ? "Admin removed you from this workspace. Attendance is disabled." : "You can only update your own attendance");
     return;
   }
   if (usingSupabase) {
@@ -1636,9 +1720,9 @@ function csvEscape(value) {
 }
 
 function exportReportCsv() {
-  const date = $("#reportDate").value || todayKey();
+  const range = reportRangeFromPreset();
   const selectedPerson = $("#reportPerson").value || "all";
-  const rows = reportTeam()
+  const rows = datesBetween(range.start, range.end).flatMap((date) => reportTeam()
     .filter((person) => selectedPerson === "all" || person.id === selectedPerson)
     .map((person) => {
       const summary = attendanceSummary(person.id, date);
@@ -1662,11 +1746,11 @@ function exportReportCsv() {
         latestWork ? statusText(latestWork.status) : status.label,
         workEntries.map((entry) => entry.details).filter(Boolean).join(" | ")
       ];
-    });
+    }));
 
   const header = ["Team Member", "Role", "Day", "Date", "In", "Break", "Out", "Hours", "Tasks", "Follow-ups", "Reviews", "Other", "Status", "Details"];
   const csv = [header, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
-  downloadFile(`avantex-report-${date}.csv`, csv, "text/csv");
+  downloadFile(`avantex-report-${range.start}-to-${range.end}.csv`, csv, "text/csv");
 }
 
 async function refreshData(message = "Data refreshed") {
@@ -1692,6 +1776,31 @@ async function updateEditor(personId) {
     person.name = name.trim();
     person.shift = shift.trim();
     saveState("Team member updated");
+  }
+}
+
+async function setMemberAdminRole(personId, nextRole) {
+  const person = getPerson(personId);
+  if (!person?.userId || !currentWorkspace || !canManageWorkspace()) return;
+  const role = nextRole === "admin" ? "admin" : "editor";
+  const label = role === "admin" ? "Admin" : "Team Member";
+  if (!confirm(`${role === "admin" ? "Give admin access to" : "Remove admin access from"} ${person.name}?`)) return;
+  if (usingSupabase) {
+    const membershipResult = await supabaseClient
+      .from("memberships")
+      .update({ role, active: true })
+      .eq("workspace_id", currentWorkspace.id)
+      .eq("user_id", person.userId);
+    if (membershipResult.error) return showToast(membershipResult.error.message);
+    const editorResult = await supabaseClient
+      .from("editors")
+      .update({ role: label, active: true })
+      .eq("id", person.id);
+    if (editorResult.error) return showToast(editorResult.error.message);
+    await refreshRemote(`${person.name} role updated`);
+  } else {
+    person.role = label;
+    saveState(`${person.name} role updated`);
   }
 }
 
@@ -2032,6 +2141,12 @@ function setupEvents() {
       await updateEditor(editPerson.dataset.editPerson);
     }
 
+    const adminRole = event.target.closest("[data-admin-role]");
+    if (adminRole) {
+      const [personId, nextRole] = adminRole.dataset.adminRole.split(":");
+      await setMemberAdminRole(personId, nextRole);
+    }
+
     const editAttendance = event.target.closest("[data-edit-attendance]");
     if (editAttendance) {
       await updateAttendanceEntry(editAttendance.dataset.editAttendance);
@@ -2119,7 +2234,7 @@ function setupEvents() {
       status: $("#workStatus").value
     };
     if (!canUsePerson(workEntry.personId)) {
-      showToast("You can only update your own work");
+      showToast(isRemovedFromWorkspace() ? "Admin removed you from this workspace. Work updates are disabled." : "You can only update your own work");
       return;
     }
     if (usingSupabase) {
@@ -2197,6 +2312,27 @@ function setupEvents() {
   });
 
   $("#reportDate").addEventListener("change", renderReports);
+  $("#reportPreset").addEventListener("change", () => {
+    const custom = $("#reportPreset").value === "custom";
+    $("#reportStartDate").disabled = !custom;
+    $("#reportEndDate").disabled = !custom;
+    const range = reportRangeFromPreset();
+    $("#reportStartDate").value = range.start;
+    $("#reportEndDate").value = range.end;
+    renderReports();
+  });
+  $("#reportStartDate").addEventListener("change", () => {
+    $("#reportPreset").value = "custom";
+    $("#reportStartDate").disabled = false;
+    $("#reportEndDate").disabled = false;
+    renderReports();
+  });
+  $("#reportEndDate").addEventListener("change", () => {
+    $("#reportPreset").value = "custom";
+    $("#reportStartDate").disabled = false;
+    $("#reportEndDate").disabled = false;
+    renderReports();
+  });
   $("#adminDate").addEventListener("change", renderAdminControls);
   $("#adminPerson").addEventListener("change", renderAdminControls);
   $("#attendanceTime").addEventListener("change", updateDateHints);
@@ -2218,6 +2354,11 @@ function setupEvents() {
     }
     if (action === "refresh") {
       await refreshData();
+      return;
+    }
+    if (action === "theme") {
+      applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+      showToast(`${document.documentElement.dataset.theme === "dark" ? "Night" : "Day"} mode enabled`);
       return;
     }
     if (action === "dashboard") {
@@ -2283,9 +2424,11 @@ function setupEvents() {
     else $("#inviteCustomRole").value = "";
   });
 
-  $("#exportJsonBtn").addEventListener("click", () => {
-    downloadFile(`avantex-work-tracker-backup-${todayKey()}.json`, JSON.stringify(state, null, 2), "application/json");
-  });
+  if ($("#exportJsonBtn")) {
+    $("#exportJsonBtn").addEventListener("click", () => {
+      downloadFile(`avantex-work-tracker-backup-${todayKey()}.json`, JSON.stringify(state, null, 2), "application/json");
+    });
+  }
 
   $("#importJsonInput").addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
