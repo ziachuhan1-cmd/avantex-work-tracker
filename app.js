@@ -46,6 +46,8 @@ function applyTheme(theme = localStorage.getItem(THEME_KEY) || "light") {
   const nextTheme = theme === "dark" ? "dark" : "light";
   document.documentElement.dataset.theme = nextTheme;
   localStorage.setItem(THEME_KEY, nextTheme);
+  const themeButton = document.querySelector('[data-profile-action="theme"]');
+  if (themeButton) themeButton.textContent = nextTheme === "dark" ? "Switch to Day Mode" : "Switch to Night Mode";
 }
 
 function authRedirectUrl() {
@@ -66,7 +68,10 @@ function authErrorMessage(error) {
     return "This email already has an account. Switch to Login or use Forgot / Set Password.";
   }
   if (lower.includes("redirect") || lower.includes("not allowed")) {
-    return "Auth redirect was blocked. Use the live Netlify link, then try again.";
+    return "Auth redirect was blocked. Use the live Avantex Work link, then try again.";
+  }
+  if (lower.includes("role_label") || lower.includes("invite row")) {
+    return "Invite setup needs the latest Supabase SQL patch. Ask the owner to run invite-role-label-repair.sql, then login again with the invited email.";
   }
   if (lower.includes("network")) {
     return "Network connection failed. Check internet, then try again.";
@@ -798,7 +803,7 @@ function workspaceInitial(name = "") {
 function workspacePlanLabel() {
   if (!currentUser) return "Login required";
   const role = currentMembership()?.role || "member";
-  return `${role} Â· Free Workspace`;
+  return `${role} · Free Workspace`;
 }
 
 function toggleWorkspaceMenu(force) {
@@ -1630,6 +1635,16 @@ function renderReports() {
     : `<tr><td colspan="11">No records found.</td></tr>`;
 }
 
+function applyReportFilters() {
+  const range = reportRangeFromPreset();
+  if (range.start > range.end) {
+    showToast("Start date cannot be after end date");
+    return;
+  }
+  renderReports();
+  showToast("Report filter applied");
+}
+
 function reportRow(person, date) {
   const summary = attendanceSummary(person.id, date);
   const status = statusFor(person.id, date);
@@ -2351,6 +2366,7 @@ function setupEvents() {
   $("#attendanceTime").addEventListener("change", updateDateHints);
   $("#workDate").addEventListener("change", updateDateHints);
   $("#reportPerson").addEventListener("change", renderReports);
+  $("#applyReportFilterBtn").addEventListener("click", applyReportFilters);
   $("#exportCsvBtn").addEventListener("click", exportReportCsv);
   $("#refreshBtn").addEventListener("click", () => refreshData());
   $("#workspaceSelect").addEventListener("change", (event) => switchWorkspace(event.target.value));
