@@ -422,7 +422,7 @@ button {
 
 .profile-menu {
   position: absolute;
-  z-index: 30;
+  z-index: 1000;
   top: calc(100% + 8px);
   right: 0;
   width: min(310px, calc(100vw - 28px));
@@ -602,6 +602,7 @@ button {
 }
 
 .metric {
+  min-width: 0;
   padding: 18px;
 }
 
@@ -613,8 +614,10 @@ button {
 .metric strong {
   display: block;
   margin-top: 10px;
-  font-size: 32px;
-  line-height: 1;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 28px;
+  line-height: 1.05;
 }
 
 .metric small {
@@ -756,8 +759,14 @@ textarea:focus {
 }
 
 .report-filters {
-  grid-template-columns: minmax(180px, 240px) minmax(180px, 280px);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  align-items: end;
   margin-bottom: 16px;
+}
+
+.filter-apply-button {
+  align-self: end;
+  min-width: 128px;
 }
 
 .status-list,
@@ -1598,6 +1607,14 @@ tr:last-child td {
   .report-filters,
   .invite-form {
     grid-template-columns: 1fr;
+  }
+
+  .metric strong {
+    font-size: 26px;
+  }
+
+  .filter-apply-button {
+    width: 100%;
   }
 
   .person-row,
