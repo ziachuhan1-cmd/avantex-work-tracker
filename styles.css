@@ -313,6 +313,13 @@ button {
   color: #ffffff;
 }
 
+body.is-booting [data-view="attendance"],
+body.is-booting [data-view="work"],
+body.is-booting [data-view="team"],
+body.is-booting [data-view="admin"] {
+  display: none;
+}
+
 .side-summary {
   margin-top: auto;
   padding: 16px;
