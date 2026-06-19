@@ -1180,15 +1180,17 @@ async function loadRemoteState(options = {}) {
     return;
   }
 
-  const [editorsResult, attendanceResult, workResult] = await Promise.all([
+  const [editorsResult, attendanceResult, workResult, workspaceMembersResult] = await Promise.all([
     supabaseClient.from("editors").select("*").eq("workspace_id", currentWorkspace.id).order("created_at", { ascending: true }),
     supabaseClient.from("attendance_logs").select("*").eq("workspace_id", currentWorkspace.id).order("happened_at", { ascending: false }),
-    supabaseClient.from("daily_work").select("*").eq("workspace_id", currentWorkspace.id).order("work_date", { ascending: false })
+    supabaseClient.from("daily_work").select("*").eq("workspace_id", currentWorkspace.id).order("work_date", { ascending: false }),
+    supabaseClient.from("memberships").select("*").eq("workspace_id", currentWorkspace.id)
   ]);
 
   if (editorsResult.error) throw editorsResult.error;
   if (attendanceResult.error) throw attendanceResult.error;
   if (workResult.error) throw workResult.error;
+  if (workspaceMembersResult.error) throw workspaceMembersResult.error;
 
   if (canManageWorkspace()) {
     const invitesResult = await supabaseClient
@@ -1202,6 +1204,8 @@ async function loadRemoteState(options = {}) {
     workspaceInvites = [];
   }
 
+  const memberByUserId = new Map((workspaceMembersResult.data || []).map((membership) => [membership.user_id, membership]));
+
   state = {
     team: (editorsResult.data || []).map((editor) => ({
       id: editor.id,
@@ -1210,7 +1214,7 @@ async function loadRemoteState(options = {}) {
       name: editor.name,
       role: editor.role || "Team Member",
       shift: editor.shift || "",
-      active: editor.active,
+      active: editor.active !== false && (!editor.user_id || memberByUserId.get(editor.user_id)?.active !== false),
       createdAt: editor.created_at,
       joinedAt: editor.created_at,
       removedAt: editor.removed_at
