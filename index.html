@@ -18,16 +18,18 @@
       body.is-booting [data-view="work"],
       body.is-booting [data-view="team"],
       body.is-booting [data-view="assignments"],
+      body.is-booting [data-view="chat"],
       body.is-booting [data-view="admin"],
       [data-view="attendance"][hidden],
       [data-view="work"][hidden],
       [data-view="team"][hidden],
       [data-view="assignments"][hidden],
+      [data-view="chat"][hidden],
       [data-view="admin"][hidden] {
         display: none !important;
       }
     </style>
-    <link rel="stylesheet" href="styles.css?v=20260620-avantex-flow">
+    <link rel="stylesheet" href="styles.css?v=20260620-chat">
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   </head>
   <body class="is-booting">
@@ -82,6 +84,9 @@
           </button>
           <button class="nav-tab" data-view="assignments" type="button" hidden>
             <span>Assignments</span>
+          </button>
+          <button class="nav-tab" data-view="chat" type="button" hidden>
+            <span>Chat</span>
           </button>
           <button class="nav-tab" data-view="reports" type="button">
             <span>Reports</span>
@@ -407,6 +412,39 @@
           </div>
         </section>
 
+        <section class="view" id="chatView" data-title="Chat">
+          <div class="chat-layout">
+            <section class="panel chat-sidebar-panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Messages</span>
+                  <h3>Workspace Chat</h3>
+                </div>
+              </div>
+              <div class="chat-create-panel admin-chat-tools">
+                <button class="primary-button" id="createGroupBtn" type="button">Create Group</button>
+              </div>
+              <div class="chat-thread-list" id="chatThreadList"></div>
+            </section>
+
+            <section class="panel chat-main-panel">
+              <div class="chat-head">
+                <div>
+                  <span class="section-kicker" id="chatThreadType">Chat</span>
+                  <h3 id="chatThreadTitle">Select a chat</h3>
+                  <small id="chatThreadMeta">Choose a member or group to start messaging.</small>
+                </div>
+                <button class="ghost-button admin-chat-tools" id="manageGroupBtn" type="button" hidden>Manage Group</button>
+              </div>
+              <div class="chat-messages" id="chatMessages"></div>
+              <form class="chat-compose" id="chatForm">
+                <input id="chatMessageInput" type="text" placeholder="Write a message..." autocomplete="off">
+                <button class="primary-button" type="submit">Send</button>
+              </form>
+            </section>
+          </div>
+        </section>
+
         <section class="view" id="teamView" data-title="Team Members">
           <div class="split-layout">
             <section class="panel">
@@ -698,7 +736,7 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="app.js?v=20260620-avantex-flow"></script>
+    <script src="app.js?v=20260620-chat"></script>
   </body>
 </html>
 
