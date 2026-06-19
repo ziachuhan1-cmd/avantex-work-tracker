@@ -553,6 +553,14 @@ function reportTeam() {
   return canManageWorkspace() ? state.team : visibleTeam();
 }
 
+function personJoinDate(person) {
+  return dateFromTimestamp(person.joinedAt || person.createdAt || currentWorkspace?.created_at || new Date().toISOString());
+}
+
+function personMatchesReportDate(person, date) {
+  return date >= personJoinDate(person);
+}
+
 function ownTeamMember() {
   if (!usingSupabase || !currentUser) return null;
   return state.team.find((person) => person.userId === currentUser.id) || null;
@@ -598,6 +606,12 @@ function canManageWorkspace() {
   return membership?.active !== false && ["owner", "admin"].includes(membership?.role);
 }
 
+function isWorkspaceOwner() {
+  if (!usingSupabase) return true;
+  const membership = currentMembership();
+  return membership?.active !== false && membership?.role === "owner";
+}
+
 function membershipRoleLabel(role = currentMembership()?.role) {
   return role === "owner" ? "Owner" : role === "admin" ? "Admin" : "Member";
 }
@@ -614,6 +628,25 @@ function inviteRoleConfig(choice, customRole = "") {
   if (choice === "thumbnail-designer") return { permissionRole: "editor", roleLabel: "Thumbnail Designer" };
   if (choice === "custom") return { permissionRole: "editor", roleLabel: trimmedCustom || "Team Member" };
   return { permissionRole: "editor", roleLabel: "Team Member" };
+}
+
+function roleChoiceFromLabel(role = "") {
+  if (role === "Admin") return "admin";
+  if (role === "Video Editor") return "video-editor";
+  if (role === "Thumbnail Designer") return "thumbnail-designer";
+  if (!role || role === "Team Member") return "member";
+  return "custom";
+}
+
+function roleSelectOptions(role = "") {
+  const selected = roleChoiceFromLabel(role);
+  return [
+    ["member", "Member"],
+    ["video-editor", "Video Editor"],
+    ["thumbnail-designer", "Thumbnail Designer"],
+    ["admin", "Admin"],
+    ["custom", "Custom"]
+  ].map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`).join("");
 }
 
 function inviteRoleLabel(invite) {
@@ -694,10 +727,40 @@ function actionLabel(action) {
   }[action] || action;
 }
 
-function statusFor(personId, date = todayKey()) {
-  const entries = state.attendance
-    .filter((entry) => entry.personId === personId && dateFromTimestamp(entry.time) === date)
+function attendanceEntriesForDate(personId, date = todayKey()) {
+  const dateStart = new Date(`${date}T00:00:00`);
+  const dateEnd = new Date(`${date}T23:59:59.999`);
+  const allEntries = state.attendance
+    .filter((entry) => entry.personId === personId)
     .sort((a, b) => new Date(a.time) - new Date(b.time));
+  const sameDayEntries = allEntries.filter((entry) => dateFromTimestamp(entry.time) === date);
+  const previousEntries = allEntries.filter((entry) => new Date(entry.time) < dateStart);
+  const lastBeforeDay = previousEntries.at(-1);
+  const hasOpenCarryover = lastBeforeDay && lastBeforeDay.action !== "out";
+
+  if (!hasOpenCarryover) return sameDayEntries;
+
+  const shiftStartIndex = allEntries.findLastIndex((entry) =>
+    new Date(entry.time) < dateStart && entry.action === "in"
+  );
+  const carryoverStart = shiftStartIndex >= 0 ? allEntries[shiftStartIndex] : lastBeforeDay;
+  const shiftStartTime = new Date(carryoverStart.time);
+  const closingOut = allEntries.find((entry) =>
+    entry.action === "out" &&
+    new Date(entry.time) > shiftStartTime
+  );
+  const shiftEndTime = closingOut ? new Date(closingOut.time) : new Date();
+
+  if (shiftStartTime > dateEnd || shiftEndTime < dateStart) return sameDayEntries;
+
+  return allEntries.filter((entry) => {
+    const time = new Date(entry.time);
+    return time >= shiftStartTime && time <= shiftEndTime;
+  });
+}
+
+function statusFor(personId, date = todayKey()) {
+  const entries = attendanceEntriesForDate(personId, date);
   const latest = entries.at(-1);
   if (!latest) return { label: "Not In", className: "out", entries };
   if (latest.action === "in" || latest.action === "break_end") return { label: "In Office", className: "in", entries };
@@ -1099,6 +1162,7 @@ async function loadRemoteState(options = {}) {
     .from("workspaces")
     .select("*")
     .in("id", workspaceIds)
+    .eq("active", true)
     .order("created_at", { ascending: true });
   if (workspaceResult.error) throw workspaceResult.error;
   availableWorkspaces = workspaceResult.data || [];
@@ -1146,7 +1210,10 @@ async function loadRemoteState(options = {}) {
       name: editor.name,
       role: editor.role || "Team Member",
       shift: editor.shift || "",
-      active: editor.active
+      active: editor.active,
+      createdAt: editor.created_at,
+      joinedAt: editor.created_at,
+      removedAt: editor.removed_at
     })),
     attendance: (attendanceResult.data || []).map((entry) => ({
       id: entry.id,
@@ -1383,6 +1450,12 @@ function renderWorkspacePanel() {
   if (!$("#workspaceNameLabel")) return;
   $("#workspaceNameLabel").textContent = currentWorkspace?.name || "No workspace selected";
   $("#workspaceRoleLabel").textContent = currentMembership()?.role || "none";
+  const settingsPanel = $("#workspaceSettingsPanel");
+  if (settingsPanel) {
+    settingsPanel.hidden = !currentWorkspace || !isWorkspaceOwner();
+    const settingsName = $("#workspaceSettingsName");
+    if (settingsName && document.activeElement !== settingsName) settingsName.value = currentWorkspace?.name || "";
+  }
   const pendingInvites = workspaceInvites.filter((invite) => {
     const isExpired = invite.expires_at && new Date(invite.expires_at) <= new Date();
     return !invite.accepted_at && !isExpired && !cancelledInviteIds.has(invite.id);
@@ -1554,7 +1627,14 @@ function renderTeam() {
         </div>
         <div class="team-actions">
           <button class="ghost-button" type="button" data-edit-person="${person.id}">Edit</button>
-          ${person.userId ? `<button class="ghost-button" type="button" data-admin-role="${person.id}:${person.role === "Admin" ? "editor" : "admin"}">${person.role === "Admin" ? "Remove Admin" : "Make Admin"}</button>` : ""}
+          ${person.userId ? `
+            <label class="team-role-control">
+              <span>Role</span>
+              <select data-member-role="${person.id}">
+                ${roleSelectOptions(person.role)}
+              </select>
+            </label>
+          ` : ""}
           <button class="ghost-button danger-text" type="button" data-delete-person="${person.id}">Remove</button>
         </div>
       </article>
@@ -1633,6 +1713,7 @@ function renderReports() {
   updateDateHints();
   const rows = datesBetween(range.start, range.end).flatMap((date) => reportTeam()
     .filter((person) => selectedPerson === "all" || person.id === selectedPerson)
+    .filter((person) => personMatchesReportDate(person, date))
     .map((person) => reportRow(person, date)));
 
   $("#reportRows").innerHTML = rows.length
@@ -1754,6 +1835,7 @@ function exportReportCsv() {
   const selectedPerson = $("#reportPerson").value || "all";
   const rows = datesBetween(range.start, range.end).flatMap((date) => reportTeam()
     .filter((person) => selectedPerson === "all" || person.id === selectedPerson)
+    .filter((person) => personMatchesReportDate(person, date))
     .map((person) => {
       const summary = attendanceSummary(person.id, date);
       const status = statusFor(person.id, date);
@@ -1810,11 +1892,24 @@ async function updateEditor(personId) {
 }
 
 async function setMemberAdminRole(personId, nextRole) {
+  await updateMemberRole(personId, nextRole);
+}
+
+async function updateMemberRole(personId, roleChoice) {
   const person = getPerson(personId);
   if (!person?.userId || !currentWorkspace || !canManageWorkspace()) return;
-  const role = nextRole === "admin" ? "admin" : "editor";
-  const label = role === "admin" ? "Admin" : "Team Member";
-  if (!confirm(`${role === "admin" ? "Give admin access to" : "Remove admin access from"} ${person.name}?`)) return;
+  let customRole = "";
+  if (roleChoice === "custom") {
+    customRole = prompt("Custom role tag", roleChoiceFromLabel(person.role) === "custom" ? person.role : "") || "";
+    if (!customRole.trim()) return showToast("Custom role is required");
+  }
+  const roleConfig = inviteRoleConfig(roleChoice, customRole);
+  const role = roleConfig.permissionRole;
+  const label = roleConfig.roleLabel;
+  if (role === "admin" && !confirm(`Give admin access to ${person.name}?`)) {
+    renderTeam();
+    return;
+  }
   if (usingSupabase) {
     const membershipResult = await supabaseClient
       .from("memberships")
@@ -2000,6 +2095,45 @@ async function createWorkspace(name) {
     localStorage.setItem(WORKSPACE_KEY, createdWorkspace.id);
     await refreshRemote("Workspace selected");
   }
+}
+
+async function updateWorkspaceName(name) {
+  if (!currentWorkspace || !isWorkspaceOwner()) return;
+  const cleanName = name.trim();
+  if (!cleanName) return showToast("Workspace name required");
+  if (usingSupabase) {
+    const rpcResult = await supabaseClient.rpc("update_workspace_name", {
+      target_workspace_id: currentWorkspace.id,
+      new_name: cleanName
+    });
+    if (rpcResult.error) {
+      const updateResult = await supabaseClient.from("workspaces").update({ name: cleanName }).eq("id", currentWorkspace.id);
+      if (updateResult.error) return showToast(rpcResult.error.message || updateResult.error.message);
+    }
+    await refreshRemote("Workspace name updated");
+    return;
+  }
+  currentWorkspace.name = cleanName;
+  showToast("Workspace name updated");
+  render();
+}
+
+async function deleteWorkspace() {
+  if (!currentWorkspace || !isWorkspaceOwner()) return;
+  const workspaceName = currentWorkspace.name;
+  const confirmation = prompt(`Type DELETE to remove ${workspaceName}. Member access will stop, but history stays saved.`);
+  if (confirmation !== "DELETE") return;
+  if (usingSupabase) {
+    const rpcResult = await supabaseClient.rpc("archive_workspace", { target_workspace_id: currentWorkspace.id });
+    if (rpcResult.error) return showToast(rpcResult.error.message);
+    localStorage.removeItem(WORKSPACE_KEY);
+    await refreshRemote("Workspace deleted");
+    return;
+  }
+  availableWorkspaces = availableWorkspaces.filter((workspace) => workspace.id !== currentWorkspace.id);
+  currentWorkspace = availableWorkspaces[0] || null;
+  render();
+  showToast("Workspace deleted");
 }
 
 async function createInvite(email, roleChoice, customRole = "") {
@@ -2242,6 +2376,13 @@ function setupEvents() {
     }
   });
 
+  document.body.addEventListener("change", async (event) => {
+    const roleSelect = event.target.closest("[data-member-role]");
+    if (roleSelect) {
+      await updateMemberRole(roleSelect.dataset.memberRole, roleSelect.value);
+    }
+  });
+
   $("#attendanceForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     await addAttendance(
@@ -2443,6 +2584,13 @@ function setupEvents() {
     await createWorkspace($("#workspaceName").value);
     event.target.reset();
   });
+
+  $("#workspaceSettingsForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await updateWorkspaceName($("#workspaceSettingsName").value);
+  });
+
+  $("#deleteWorkspaceBtn")?.addEventListener("click", deleteWorkspace);
 
   $("#inviteForm").addEventListener("submit", async (event) => {
     event.preventDefault();
