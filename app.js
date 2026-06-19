@@ -1581,6 +1581,30 @@ function renderDashboard() {
   $("#dashboardWork").innerHTML = todayWork.length
     ? todayWork.slice().reverse().map(workCard).join("")
     : emptyState("No work updates for today.");
+
+  const assignmentPeopleIds = new Set(people.map((person) => person.id));
+  const dashboardAssignments = state.assignments
+    .filter((assignment) => assignmentPeopleIds.has(assignment.personId))
+    .filter((assignment) => !["approved"].includes(assignment.status))
+    .slice(0, 5);
+  if ($("#dashboardAssignmentsTitle")) $("#dashboardAssignmentsTitle").textContent = canManageWorkspace() ? "Open Assignments" : "My Assigned Work";
+  if ($("#dashboardAssignments")) {
+    $("#dashboardAssignments").innerHTML = dashboardAssignments.length
+      ? dashboardAssignments.map((assignment) => {
+          const person = getPerson(assignment.personId);
+          return `
+            <article class="mini-assignment">
+              <strong>${escapeHtml(assignment.title)}</strong>
+              <div class="meta-line">
+                <span>${escapeHtml(person?.name || "Me")}</span>
+                <span>${assignmentStatusText(assignment.status)}</span>
+                ${assignment.dueDate ? `<span>${formatDateOnly(assignment.dueDate)}</span>` : ""}
+              </div>
+            </article>
+          `;
+        }).join("")
+      : emptyState(canManageWorkspace() ? "No open assignments." : "No assigned work yet.");
+  }
 }
 
 function personStatusRow(person, date = todayKey()) {
@@ -2323,9 +2347,10 @@ async function sendAssignmentEmail(person, assignment) {
       showToast(`Assignment email sent to ${person.email}`);
       return true;
     } catch (error) {
-      showToast(error?.text || error?.message || "Assignment saved. Email failed.");
+      showToast("Assignment saved. Email notification could not be sent.");
     }
   }
+  showToast("Assignment saved. Member will see it inside the tool.");
   return false;
 }
 
