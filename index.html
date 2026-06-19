@@ -8,10 +8,12 @@
       body.is-booting [data-view="attendance"],
       body.is-booting [data-view="work"],
       body.is-booting [data-view="team"],
+      body.is-booting [data-view="assignments"],
       body.is-booting [data-view="admin"],
       [data-view="attendance"][hidden],
       [data-view="work"][hidden],
       [data-view="team"][hidden],
+      [data-view="assignments"][hidden],
       [data-view="admin"][hidden] {
         display: none !important;
       }
@@ -72,6 +74,9 @@
           </button>
           <button class="nav-tab" data-view="team" type="button" hidden>
             <span>Team Members</span>
+          </button>
+          <button class="nav-tab" data-view="assignments" type="button" hidden>
+            <span>Assignments</span>
           </button>
           <button class="nav-tab" data-view="reports" type="button">
             <span>Reports</span>
@@ -316,6 +321,72 @@
                 </div>
               </div>
               <div class="work-list" id="workLog"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="assignmentsView" data-title="Assignments">
+          <div class="split-layout">
+            <section class="panel assignment-admin-panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Assign</span>
+                  <h3>Assign Work</h3>
+                </div>
+              </div>
+              <form class="form-stack" id="assignmentForm">
+                <label>
+                  Team Member
+                  <select id="assignmentPerson"></select>
+                </label>
+                <label>
+                  Task Title
+                  <input id="assignmentTitle" type="text" placeholder="Prepare weekly report" required>
+                </label>
+                <label>
+                  Work Type
+                  <select id="assignmentType">
+                    <option value="Google Sheet">Google Sheet</option>
+                    <option value="Google Doc">Google Doc</option>
+                    <option value="Video Link">Video Link</option>
+                    <option value="Folder Link">Folder Link</option>
+                    <option value="Design Link">Design Link</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                <label>
+                  Work Link
+                  <input id="assignmentUrl" type="url" placeholder="https://docs.google.com/...">
+                </label>
+                <label>
+                  Priority
+                  <select id="assignmentPriority">
+                    <option value="normal">Normal</option>
+                    <option value="low">Low</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </label>
+                <label>
+                  Due Date
+                  <input id="assignmentDueDate" type="date">
+                </label>
+                <label>
+                  Instructions
+                  <textarea id="assignmentNotes" rows="3" placeholder="Add clear instructions for this work"></textarea>
+                </label>
+                <button class="primary-button" type="submit">Assign Work</button>
+              </form>
+            </section>
+
+            <section class="panel wide">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker" id="assignmentListKicker">Work</span>
+                  <h3 id="assignmentListTitle">Assigned Work</h3>
+                </div>
+              </div>
+              <div class="assignment-list" id="assignmentList"></div>
             </section>
           </div>
         </section>
