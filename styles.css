@@ -1110,6 +1110,18 @@ textarea:focus {
   gap: 8px;
 }
 
+.mini-assignment {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.mini-assignment strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
