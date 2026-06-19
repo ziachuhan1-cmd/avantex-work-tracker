@@ -1969,24 +1969,23 @@ async function ensureDirectChat(personId) {
     updated_at: new Date().toISOString()
   };
   if (usingSupabase) {
-    const { data, error } = await supabaseClient.from("chat_threads").insert(payload);
-    if (error) {
-      const message = (error.message || "").toLowerCase();
-      if (message.includes("row-level security") || message.includes("chat_threads")) {
-        throw new Error("Chat permission fix needed. Run chat-rls-fix-v2.sql in Supabase.");
-      }
-      throw error;
-    }
-    const row = Array.isArray(data) ? data[0] : data;
+    const { data, error } = await supabaseClient.rpc("create_chat_thread_rpc", {
+      target_workspace_id: currentWorkspace.id,
+      target_thread_type: "direct",
+      target_title: person?.name || "Direct Chat",
+      target_member_editor_ids: memberIds
+    });
+    if (error) throw new Error("Chat setup needed. Run chat-rpc-fix.sql in Supabase.");
+    const threadId = Array.isArray(data) ? data[0] : data;
     return {
-      id: row.id,
-      workspaceId: row.workspace_id,
-      type: row.thread_type,
-      title: row.title,
-      createdBy: row.created_by,
-      memberIds: row.member_editor_ids || [],
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
+      id: threadId,
+      workspaceId: currentWorkspace.id,
+      type: "direct",
+      title: payload.title,
+      createdBy: currentUser.id,
+      memberIds,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
   }
   return { id: uid(), workspaceId: currentWorkspace?.id, type: "direct", title: payload.title, memberIds, createdBy: currentUser?.id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
@@ -2014,8 +2013,13 @@ async function createGroupChat() {
     updated_at: new Date().toISOString()
   };
   if (usingSupabase) {
-    const { error } = await supabaseClient.from("chat_threads").insert(payload);
-    if (error) return showToast("Chat permission fix needed. Run chat-rls-fix-v2.sql in Supabase.");
+    const { error } = await supabaseClient.rpc("create_chat_thread_rpc", {
+      target_workspace_id: currentWorkspace.id,
+      target_thread_type: "group",
+      target_title: payload.title,
+      target_member_editor_ids: payload.member_editor_ids
+    });
+    if (error) return showToast("Chat setup needed. Run chat-rpc-fix.sql in Supabase.");
     await refreshRemote("Group created");
     return;
   }
@@ -2069,9 +2073,11 @@ async function sendChatMessage(body) {
       body: text
     };
     if (usingSupabase) {
-      const { error } = await supabaseClient.from("chat_messages").insert(payload);
-      if (error) return showToast("Chat setup needed. Run chat-upgrade.sql in Supabase.");
-      await supabaseClient.from("chat_threads").update({ updated_at: new Date().toISOString() }).eq("id", thread.id);
+      const { error } = await supabaseClient.rpc("send_chat_message_rpc", {
+        target_thread_id: thread.id,
+        message_body: text
+      });
+      if (error) return showToast("Chat setup needed. Run chat-rpc-fix.sql in Supabase.");
       await refreshRemote("Message sent");
       return;
     }
