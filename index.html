@@ -330,6 +330,18 @@
                 </div>
                 <span class="session-pill" id="workspaceRoleLabel">role</span>
               </div>
+              <div class="workspace-settings-box" id="workspaceSettingsPanel" hidden>
+                <form class="form-stack compact-form" id="workspaceSettingsForm">
+                  <label>
+                    Workspace Name
+                    <input id="workspaceSettingsName" type="text" placeholder="Workspace name">
+                  </label>
+                  <div class="settings-actions">
+                    <button class="primary-button" type="submit">Update Name</button>
+                    <button class="ghost-button danger-text" id="deleteWorkspaceBtn" type="button">Delete Workspace</button>
+                  </div>
+                </form>
+              </div>
               <form class="form-stack invite-form" id="inviteForm">
                 <label>
                   Member Email
