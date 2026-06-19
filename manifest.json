@@ -1,0 +1,20 @@
+{
+  "name": "Avantex Work Tracker",
+  "short_name": "Avantex",
+  "description": "Attendance, assignments, and daily work tracking for teams.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f4f7fb",
+  "theme_color": "#0f1a24",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "icons/avantex-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
