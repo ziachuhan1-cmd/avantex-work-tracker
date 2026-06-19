@@ -2161,8 +2161,7 @@ async function deleteWorkspace(workspaceId = currentWorkspace?.id) {
   const targetWorkspace = availableWorkspaces.find((workspace) => workspace.id === workspaceId) || currentWorkspace;
   if (!targetWorkspace || !isWorkspaceOwnerFor(targetWorkspace.id)) return;
   const workspaceName = targetWorkspace.name;
-  const confirmation = prompt(`Type DELETE to remove ${workspaceName}. Member access will stop, but history stays saved.`);
-  if (confirmation !== "DELETE") return;
+  if (!confirm(`Delete ${workspaceName}? Member access will stop, but history stays saved.`)) return;
   if (usingSupabase) {
     const rpcResult = await supabaseClient.rpc("archive_workspace", { target_workspace_id: targetWorkspace.id });
     if (rpcResult.error) return showToast(rpcResult.error.message);
