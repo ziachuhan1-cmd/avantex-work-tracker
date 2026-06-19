@@ -60,17 +60,18 @@ to authenticated
 using (public.can_access_chat_thread(id));
 
 drop policy if exists "chat threads insert admins" on public.chat_threads;
-create policy "chat threads insert admins"
+drop policy if exists "chat threads insert workspace members" on public.chat_threads;
+create policy "chat threads insert workspace members"
 on public.chat_threads for insert
 to authenticated
 with check (
   public.has_workspace_role(workspace_id, array['owner', 'admin'])
   or exists (
-    select 1 from public.editors e
-    where e.workspace_id = chat_threads.workspace_id
-      and e.user_id = auth.uid()
-      and e.active = true
-      and e.id = any(chat_threads.member_editor_ids)
+    select 1
+    from public.memberships m
+    where m.workspace_id = chat_threads.workspace_id
+      and m.user_id = auth.uid()
+      and m.active = true
   )
 );
 
