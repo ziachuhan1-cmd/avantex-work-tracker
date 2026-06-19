@@ -1992,7 +1992,13 @@ async function ensureDirectChat(personId) {
   };
   if (usingSupabase) {
     const { data, error } = await supabaseClient.from("chat_threads").insert(payload);
-    if (error) throw error;
+    if (error) {
+      const message = (error.message || "").toLowerCase();
+      if (message.includes("row-level security") || message.includes("chat_threads")) {
+        throw new Error("Chat permission fix needed. Run chat-rls-fix.sql in Supabase.");
+      }
+      throw error;
+    }
     const row = Array.isArray(data) ? data[0] : data;
     return {
       id: row.id,
@@ -2031,7 +2037,7 @@ async function createGroupChat() {
   };
   if (usingSupabase) {
     const { error } = await supabaseClient.from("chat_threads").insert(payload);
-    if (error) return showToast("Chat setup needed. Run chat-upgrade.sql in Supabase.");
+    if (error) return showToast("Chat permission fix needed. Run chat-rls-fix.sql in Supabase.");
     await refreshRemote("Group created");
     return;
   }
