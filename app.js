@@ -2375,11 +2375,9 @@ async function createAssignment(data) {
     status: "assigned",
     due_date: data.dueDate || null
   };
-  const { data: inserted, error } = await supabaseClient
+  const { data: insertedRows, error } = await supabaseClient
     .from("work_assignments")
-    .insert(payload)
-    .select()
-    .maybeSingle();
+    .insert(payload);
   if (error) {
     const message = (error.message || "").toLowerCase();
     if (message.includes("network")) return showToast("Assignment could not save. Run work-assignments-upgrade.sql in Supabase, then try again.");
@@ -2388,6 +2386,7 @@ async function createAssignment(data) {
     }
     return showToast(error.message);
   }
+  const inserted = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
   state.assignments.unshift({
     id: inserted?.id || uid(),
     workspaceId: currentWorkspace.id,
