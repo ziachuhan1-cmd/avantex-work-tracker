@@ -243,7 +243,7 @@ button {
 .workspace-menu-actions button:hover,
 .workspace-create-button:hover,
 .workspace-option:hover,
-.workspace-option.is-active {
+.workspace-option-row.is-active {
   background: #20303f;
 }
 
@@ -264,6 +264,13 @@ button {
   font-weight: 800;
 }
 
+.workspace-option-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: center;
+  border-radius: 8px;
+}
+
 .workspace-option {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);
@@ -272,6 +279,23 @@ button {
   width: 100%;
   padding: 7px 8px;
   text-align: left;
+}
+
+.workspace-more-button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #d8e0e8;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workspace-more-button:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .workspace-option .workspace-avatar {
