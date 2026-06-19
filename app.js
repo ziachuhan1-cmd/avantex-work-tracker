@@ -18,7 +18,7 @@ if (!IS_LOCAL_PREVIEW && window.location.hostname !== CANONICAL_HOST) {
 
 const sampleTeam = [];
 
-let state = { team: [], attendance: [], work: [], assignments: [] };
+let state = { team: [], attendance: [], work: [], assignments: [], chatThreads: [], chatMessages: [] };
 let toastTimer = null;
 let supabaseClient = null;
 let usingSupabase = false;
@@ -36,6 +36,7 @@ let autoRefreshRunning = false;
 let lastSyncedAt = null;
 let cancelledInviteIds = new Set();
 let workspaceCreateOpen = false;
+let selectedChatThreadId = "";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -208,7 +209,9 @@ function loadState() {
       team: sampleTeam,
       attendance: [],
       work: [],
-      assignments: []
+      assignments: [],
+      chatThreads: [],
+      chatMessages: []
     };
   }
 
@@ -218,10 +221,12 @@ function loadState() {
       team: Array.isArray(parsed.team) ? parsed.team : sampleTeam,
       attendance: Array.isArray(parsed.attendance) ? parsed.attendance : [],
       work: Array.isArray(parsed.work) ? parsed.work : [],
-      assignments: Array.isArray(parsed.assignments) ? parsed.assignments : []
+      assignments: Array.isArray(parsed.assignments) ? parsed.assignments : [],
+      chatThreads: Array.isArray(parsed.chatThreads) ? parsed.chatThreads : [],
+      chatMessages: Array.isArray(parsed.chatMessages) ? parsed.chatMessages : []
     };
   } catch {
-    return { team: sampleTeam, attendance: [], work: [], assignments: [] };
+    return { team: sampleTeam, attendance: [], work: [], assignments: [], chatThreads: [], chatMessages: [] };
   }
 }
 
@@ -1023,11 +1028,13 @@ function applyAccessControls() {
   const workTab = document.querySelector('[data-view="work"]');
   const teamTab = document.querySelector('[data-view="team"]');
   const assignmentsTab = document.querySelector('[data-view="assignments"]');
+  const chatTab = document.querySelector('[data-view="chat"]');
   const adminTab = document.querySelector('[data-view="admin"]');
   if (attendanceTab) attendanceTab.hidden = admin || !currentWorkspace;
   if (workTab) workTab.hidden = admin || !currentWorkspace;
   if (teamTab) teamTab.hidden = !admin || !currentWorkspace;
   if (assignmentsTab) assignmentsTab.hidden = !currentWorkspace;
+  if (chatTab) chatTab.hidden = !currentWorkspace;
   if (adminTab) adminTab.hidden = !admin || !currentWorkspace;
   document.body.classList.remove("is-booting");
   const manualPanel = document.querySelector(".manual-member-panel");
@@ -1036,6 +1043,9 @@ function applyAccessControls() {
   $("#inviteForm").style.display = admin ? "grid" : "none";
   const assignmentAdminPanel = document.querySelector(".assignment-admin-panel");
   if (assignmentAdminPanel) assignmentAdminPanel.style.display = admin ? "" : "none";
+  $$(".admin-chat-tools").forEach((item) => {
+    item.style.display = admin ? "" : "none";
+  });
   $$(".admin-metric").forEach((item) => {
     item.style.display = admin ? "" : "none";
   });
@@ -1191,7 +1201,7 @@ async function loadRemoteState(options = {}) {
     currentWorkspace = null;
     availableWorkspaces = [];
     workspaceInvites = [];
-    state = { team: [], attendance: [], work: [], assignments: [] };
+    state = { team: [], attendance: [], work: [], assignments: [], chatThreads: [], chatMessages: [] };
     return;
   }
 
@@ -1214,16 +1224,18 @@ async function loadRemoteState(options = {}) {
 
   if (!currentWorkspace) {
     workspaceInvites = [];
-    state = { team: [], attendance: [], work: [], assignments: [] };
+    state = { team: [], attendance: [], work: [], assignments: [], chatThreads: [], chatMessages: [] };
     return;
   }
 
-  const [editorsResult, attendanceResult, workResult, workspaceMembersResult, assignmentsResult] = await Promise.all([
+  const [editorsResult, attendanceResult, workResult, workspaceMembersResult, assignmentsResult, chatThreadsResult, chatMessagesResult] = await Promise.all([
     supabaseClient.from("editors").select("*").eq("workspace_id", currentWorkspace.id).order("created_at", { ascending: true }),
     supabaseClient.from("attendance_logs").select("*").eq("workspace_id", currentWorkspace.id).order("happened_at", { ascending: false }),
     supabaseClient.from("daily_work").select("*").eq("workspace_id", currentWorkspace.id).order("work_date", { ascending: false }),
     supabaseClient.from("memberships").select("*").eq("workspace_id", currentWorkspace.id),
-    supabaseClient.from("work_assignments").select("*").eq("workspace_id", currentWorkspace.id).order("created_at", { ascending: false })
+    supabaseClient.from("work_assignments").select("*").eq("workspace_id", currentWorkspace.id).order("created_at", { ascending: false }),
+    supabaseClient.from("chat_threads").select("*").eq("workspace_id", currentWorkspace.id).order("updated_at", { ascending: false }),
+    supabaseClient.from("chat_messages").select("*").eq("workspace_id", currentWorkspace.id).order("created_at", { ascending: true })
   ]);
 
   if (editorsResult.error) throw editorsResult.error;
@@ -1233,6 +1245,11 @@ async function loadRemoteState(options = {}) {
   const assignmentsReady = !assignmentsResult.error;
   if (assignmentsResult.error && !(assignmentsResult.error.message || "").toLowerCase().includes("work_assignments")) {
     throw assignmentsResult.error;
+  }
+  const chatReady = !chatThreadsResult.error && !chatMessagesResult.error;
+  const chatErrorText = `${chatThreadsResult.error?.message || ""} ${chatMessagesResult.error?.message || ""}`.toLowerCase();
+  if (!chatReady && chatErrorText && !chatErrorText.includes("chat_threads") && !chatErrorText.includes("chat_messages")) {
+    throw chatThreadsResult.error || chatMessagesResult.error;
   }
 
   if (canManageWorkspace()) {
@@ -1301,6 +1318,25 @@ async function loadRemoteState(options = {}) {
       dueDate: entry.due_date || "",
       createdAt: entry.created_at,
       updatedAt: entry.updated_at
+    })),
+    chatThreads: (chatReady ? chatThreadsResult.data || [] : []).map((thread) => ({
+      id: thread.id,
+      workspaceId: thread.workspace_id,
+      type: thread.thread_type || "group",
+      title: thread.title || "",
+      createdBy: thread.created_by,
+      memberIds: Array.isArray(thread.member_editor_ids) ? thread.member_editor_ids : [],
+      createdAt: thread.created_at,
+      updatedAt: thread.updated_at
+    })),
+    chatMessages: (chatReady ? chatMessagesResult.data || [] : []).map((message) => ({
+      id: message.id,
+      workspaceId: message.workspace_id,
+      threadId: message.thread_id,
+      senderId: message.sender_id,
+      senderEditorId: message.sender_editor_id,
+      body: message.body || "",
+      createdAt: message.created_at
     }))
   };
 
@@ -1511,6 +1547,7 @@ function render() {
   renderWorkLog();
   renderTeam();
   renderAssignments();
+  renderChat();
   renderReports();
   renderAdminControls();
 }
@@ -1799,6 +1836,242 @@ function renderAssignments() {
         `;
       }).join("")
     : emptyState(canManageWorkspace() ? "No work assigned yet." : "No assignments yet.");
+}
+
+function chatParticipantIds(thread) {
+  return Array.isArray(thread?.memberIds) ? thread.memberIds : [];
+}
+
+function canSeeChatThread(thread) {
+  if (canManageWorkspace()) return true;
+  const own = ownTeamMember();
+  return own && chatParticipantIds(thread).includes(own.id);
+}
+
+function directThreadFor(personId) {
+  return state.chatThreads.find((thread) => thread.type === "direct" && chatParticipantIds(thread).includes(personId));
+}
+
+function visibleChatThreads() {
+  const own = ownTeamMember();
+  const directPeople = activeTeam().filter((person) => canManageWorkspace() ? person.id !== own?.id : person.userId !== currentUser?.id);
+  const directItems = directPeople.map((person) => {
+    const thread = directThreadFor(person.id);
+    return {
+      id: thread?.id || `direct:${person.id}`,
+      type: "direct",
+      title: person.name,
+      meta: person.role || "Team Member",
+      personId: person.id,
+      updatedAt: thread?.updatedAt || person.joinedAt || person.createdAt,
+      lastMessage: thread ? lastChatMessage(thread.id) : null
+    };
+  });
+  const groupItems = state.chatThreads
+    .filter((thread) => thread.type === "group")
+    .filter(canSeeChatThread)
+    .map((thread) => ({
+      id: thread.id,
+      type: "group",
+      title: thread.title || "Group Chat",
+      meta: `${chatParticipantIds(thread).length} members`,
+      updatedAt: thread.updatedAt,
+      lastMessage: lastChatMessage(thread.id)
+    }));
+  return [...groupItems, ...directItems].sort((a, b) => new Date(b.lastMessage?.createdAt || b.updatedAt || 0) - new Date(a.lastMessage?.createdAt || a.updatedAt || 0));
+}
+
+function lastChatMessage(threadId) {
+  return state.chatMessages.filter((message) => message.threadId === threadId).slice(-1)[0] || null;
+}
+
+function selectedChatThread() {
+  if (!selectedChatThreadId) return null;
+  if (selectedChatThreadId.startsWith("direct:")) {
+    const personId = selectedChatThreadId.split(":")[1];
+    const existing = directThreadFor(personId);
+    const person = getPerson(personId);
+    return existing || (person ? { id: selectedChatThreadId, type: "direct", title: person.name, memberIds: [personId], virtual: true } : null);
+  }
+  return state.chatThreads.find((thread) => thread.id === selectedChatThreadId) || null;
+}
+
+function senderName(message) {
+  const person = getPerson(message.senderEditorId);
+  return person?.name || currentProfile?.display_name || currentUser?.email || "Member";
+}
+
+function renderChat() {
+  if (!$("#chatThreadList")) return;
+  const threads = visibleChatThreads();
+  if (!selectedChatThreadId && threads.length) selectedChatThreadId = threads[0].id;
+  if (selectedChatThreadId && !threads.some((thread) => thread.id === selectedChatThreadId)) selectedChatThreadId = threads[0]?.id || "";
+
+  $("#chatThreadList").innerHTML = threads.length
+    ? threads.map((thread) => `
+      <button class="chat-thread ${thread.id === selectedChatThreadId ? "is-active" : ""}" type="button" data-chat-thread="${thread.id}">
+        <span class="chat-thread-avatar">${thread.type === "group" ? "G" : escapeHtml(thread.title.slice(0, 1).toUpperCase())}</span>
+        <span>
+          <strong>${escapeHtml(thread.title)}</strong>
+          <small>${escapeHtml(thread.lastMessage?.body || thread.meta || "No messages yet")}</small>
+        </span>
+      </button>
+    `).join("")
+    : emptyState(canManageWorkspace() ? "No active team members yet." : "No chats available yet.");
+
+  const thread = selectedChatThread();
+  const messageBox = $("#chatMessages");
+  $("#manageGroupBtn").hidden = !(thread && thread.type === "group" && canManageWorkspace());
+  if (!thread) {
+    $("#chatThreadType").textContent = "Chat";
+    $("#chatThreadTitle").textContent = "Select a chat";
+    $("#chatThreadMeta").textContent = "Choose a member or group to start messaging.";
+    messageBox.innerHTML = emptyState("No chat selected.");
+    $("#chatMessageInput").disabled = true;
+    return;
+  }
+
+  const participants = chatParticipantIds(thread).map(getPerson).filter(Boolean);
+  $("#chatThreadType").textContent = thread.type === "group" ? "Group Chat" : "Direct Chat";
+  $("#chatThreadTitle").textContent = thread.title || "Chat";
+  $("#chatThreadMeta").textContent = thread.type === "group" ? participants.map((person) => person.name).join(", ") : "Private workspace conversation";
+  $("#chatMessageInput").disabled = false;
+  const messages = state.chatMessages.filter((message) => message.threadId === thread.id);
+  messageBox.innerHTML = messages.length
+    ? messages.map((message) => {
+        const mine = message.senderId === currentUser?.id;
+        return `
+          <article class="chat-message ${mine ? "mine" : ""}">
+            <strong>${escapeHtml(senderName(message))}</strong>
+            <p>${escapeHtml(message.body)}</p>
+            <small>${formatDateTimeWithDay(message.createdAt).date} ${formatDateTimeWithDay(message.createdAt).time}</small>
+          </article>
+        `;
+      }).join("")
+    : emptyState("No messages yet. Start the conversation.");
+  messageBox.scrollTop = messageBox.scrollHeight;
+}
+
+async function ensureDirectChat(personId) {
+  const existing = directThreadFor(personId);
+  if (existing) return existing;
+  const person = getPerson(personId);
+  const own = ownTeamMember();
+  const memberIds = [...new Set([personId, own?.id].filter(Boolean))];
+  const payload = {
+    workspace_id: currentWorkspace.id,
+    thread_type: "direct",
+    title: person?.name || "Direct Chat",
+    member_editor_ids: memberIds,
+    created_by: currentUser.id,
+    updated_at: new Date().toISOString()
+  };
+  if (usingSupabase) {
+    const { data, error } = await supabaseClient.from("chat_threads").insert(payload);
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    return {
+      id: row.id,
+      workspaceId: row.workspace_id,
+      type: row.thread_type,
+      title: row.title,
+      createdBy: row.created_by,
+      memberIds: row.member_editor_ids || [],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+  return { id: uid(), workspaceId: currentWorkspace?.id, type: "direct", title: payload.title, memberIds, createdBy: currentUser?.id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+}
+
+async function createGroupChat() {
+  if (!canManageWorkspace()) return showToast("Only workspace admin can create groups");
+  const title = prompt("Group name?");
+  if (!title?.trim()) return;
+  const membersText = activeTeam().map((person, index) => `${index + 1}. ${person.name}`).join("\n");
+  const picks = prompt(`Select members by number, comma separated:\n\n${membersText}`);
+  if (!picks) return;
+  const people = activeTeam();
+  const memberIds = picks.split(",")
+    .map((item) => Number(item.trim()) - 1)
+    .filter((index) => index >= 0 && index < people.length)
+    .map((index) => people[index].id);
+  if (!memberIds.length) return showToast("Select at least one member");
+  const payload = {
+    workspace_id: currentWorkspace.id,
+    thread_type: "group",
+    title: title.trim(),
+    member_editor_ids: [...new Set(memberIds)],
+    created_by: currentUser.id,
+    updated_at: new Date().toISOString()
+  };
+  if (usingSupabase) {
+    const { error } = await supabaseClient.from("chat_threads").insert(payload);
+    if (error) return showToast("Chat setup needed. Run chat-upgrade.sql in Supabase.");
+    await refreshRemote("Group created");
+    return;
+  }
+  state.chatThreads.unshift({ id: uid(), workspaceId: currentWorkspace?.id, type: "group", title: payload.title, memberIds: payload.member_editor_ids, createdBy: currentUser?.id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  saveState("Group created");
+}
+
+async function manageSelectedGroupChat() {
+  const thread = selectedChatThread();
+  if (!thread || thread.type !== "group" || !canManageWorkspace()) return;
+  const people = activeTeam();
+  const membersText = people.map((person, index) => `${index + 1}. ${person.name}${chatParticipantIds(thread).includes(person.id) ? " (added)" : ""}`).join("\n");
+  const picks = prompt(`Update group members by number, comma separated:\n\n${membersText}`);
+  if (!picks) return;
+  const memberIds = picks.split(",")
+    .map((item) => Number(item.trim()) - 1)
+    .filter((index) => index >= 0 && index < people.length)
+    .map((index) => people[index].id);
+  if (!memberIds.length) return showToast("Select at least one member");
+  const uniqueMemberIds = [...new Set(memberIds)];
+  if (usingSupabase) {
+    const { error } = await supabaseClient
+      .from("chat_threads")
+      .update({ member_editor_ids: uniqueMemberIds, updated_at: new Date().toISOString() })
+      .eq("id", thread.id);
+    if (error) return showToast(error.message);
+    await refreshRemote("Group updated");
+    return;
+  }
+  state.chatThreads = state.chatThreads.map((item) => item.id === thread.id ? { ...item, memberIds: uniqueMemberIds, updatedAt: new Date().toISOString() } : item);
+  saveState("Group updated");
+}
+
+async function sendChatMessage(body) {
+  const text = String(body || "").trim();
+  if (!text) return;
+  let thread = selectedChatThread();
+  if (!thread) return;
+  try {
+    if (thread.virtual && thread.id.startsWith("direct:")) {
+      thread = await ensureDirectChat(thread.id.split(":")[1]);
+      selectedChatThreadId = thread.id;
+      if (!state.chatThreads.some((item) => item.id === thread.id)) state.chatThreads.unshift(thread);
+    }
+    const own = ownTeamMember();
+    const payload = {
+      workspace_id: currentWorkspace.id,
+      thread_id: thread.id,
+      sender_id: currentUser.id,
+      sender_editor_id: own?.id || null,
+      body: text
+    };
+    if (usingSupabase) {
+      const { error } = await supabaseClient.from("chat_messages").insert(payload);
+      if (error) return showToast("Chat setup needed. Run chat-upgrade.sql in Supabase.");
+      await supabaseClient.from("chat_threads").update({ updated_at: new Date().toISOString() }).eq("id", thread.id);
+      await refreshRemote("Message sent");
+      return;
+    }
+    state.chatMessages.push({ id: uid(), workspaceId: currentWorkspace?.id, threadId: thread.id, senderId: currentUser?.id, senderEditorId: own?.id, body: text, createdAt: new Date().toISOString() });
+    saveState("Message sent");
+  } catch (err) {
+    showToast(err.message || "Message could not send");
+  }
 }
 
 function renderAdminControls() {
@@ -2674,6 +2947,22 @@ function setupEvents() {
     if (deleteAssignmentButton) {
       await deleteAssignment(deleteAssignmentButton.dataset.deleteAssignment);
     }
+
+    const chatThreadButton = event.target.closest("[data-chat-thread]");
+    if (chatThreadButton) {
+      selectedChatThreadId = chatThreadButton.dataset.chatThread;
+      renderChat();
+    }
+
+    const createGroupButton = event.target.closest("#createGroupBtn");
+    if (createGroupButton) {
+      await createGroupChat();
+    }
+
+    const manageGroupButton = event.target.closest("#manageGroupBtn");
+    if (manageGroupButton) {
+      await manageSelectedGroupChat();
+    }
   });
 
   document.body.addEventListener("change", async (event) => {
@@ -2768,6 +3057,13 @@ function setupEvents() {
       notes: $("#assignmentNotes").value
     });
     event.target.reset();
+  });
+
+  $("#chatForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = $("#chatMessageInput");
+    await sendChatMessage(input.value);
+    input.value = "";
   });
 
   $("#teamForm").addEventListener("submit", async (event) => {
