@@ -1230,7 +1230,10 @@ async function loadRemoteState(options = {}) {
   if (attendanceResult.error) throw attendanceResult.error;
   if (workResult.error) throw workResult.error;
   if (workspaceMembersResult.error) throw workspaceMembersResult.error;
-  if (assignmentsResult.error) throw assignmentsResult.error;
+  const assignmentsReady = !assignmentsResult.error;
+  if (assignmentsResult.error && !(assignmentsResult.error.message || "").toLowerCase().includes("work_assignments")) {
+    throw assignmentsResult.error;
+  }
 
   if (canManageWorkspace()) {
     const invitesResult = await supabaseClient
@@ -1284,7 +1287,7 @@ async function loadRemoteState(options = {}) {
       status: entry.status,
       createdAt: entry.created_at
     })),
-    assignments: (assignmentsResult.data || []).map((entry) => ({
+    assignments: (assignmentsReady ? assignmentsResult.data || [] : []).map((entry) => ({
       id: entry.id,
       workspaceId: entry.workspace_id,
       personId: entry.assigned_to,
@@ -2377,8 +2380,32 @@ async function createAssignment(data) {
     .insert(payload)
     .select()
     .maybeSingle();
-  if (error) return showToast(error.message);
-  await refreshRemote("Work assigned");
+  if (error) {
+    const message = (error.message || "").toLowerCase();
+    if (message.includes("network")) return showToast("Assignment could not save. Run work-assignments-upgrade.sql in Supabase, then try again.");
+    if (message.includes("work_assignments") || message.includes("schema") || message.includes("relation")) {
+      return showToast("Assignments table is not ready. Run work-assignments-upgrade.sql in Supabase.");
+    }
+    return showToast(error.message);
+  }
+  state.assignments.unshift({
+    id: inserted?.id || uid(),
+    workspaceId: currentWorkspace.id,
+    personId: person.id,
+    assignedBy: currentUser.id,
+    title,
+    workType: data.workType,
+    url: data.url.trim(),
+    notes: data.notes.trim(),
+    priority: data.priority,
+    status: "assigned",
+    dueDate: data.dueDate,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+  render();
+  showToast("Work assigned. Member will see it inside the tool.");
+  syncRemoteSilently();
   await sendAssignmentEmail(person, {
     title,
     workType: data.workType,
