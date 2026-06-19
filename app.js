@@ -2245,7 +2245,10 @@ async function removeTeamMember(personId) {
         if (memberUpdate.error) return showToast(memberUpdate.error.message);
       }
     }
-    state.team = state.team.map((item) => item.id === person.id ? { ...item, active: false } : item);
+    state.team = state.team.map((item) => {
+      const sameUser = person.userId && item.userId === person.userId;
+      return item.id === person.id || sameUser ? { ...item, active: false } : item;
+    });
     await refreshRemote(`${person.name} removed`);
     return;
   }
