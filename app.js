@@ -549,12 +549,8 @@ function activeTeam() {
   return state.team.filter((person) => person.active !== false && (!usingSupabase || person.userId));
 }
 
-function historyTeam() {
-  return usingSupabase ? state.team.filter((person) => person.userId) : state.team;
-}
-
 function reportTeam() {
-  return canManageWorkspace() ? historyTeam() : visibleTeam();
+  return canManageWorkspace() ? activeTeam() : visibleTeam();
 }
 
 function personJoinDate(person) {
