@@ -1869,6 +1869,22 @@ function visibleChatThreads() {
       lastMessage: thread ? lastChatMessage(thread.id) : null
     };
   });
+  const mappedDirectIds = new Set(directItems.map((item) => directThreadFor(item.personId)?.id).filter(Boolean));
+  const existingDirectItems = state.chatThreads
+    .filter((thread) => thread.type === "direct")
+    .filter(canSeeChatThread)
+    .filter((thread) => !mappedDirectIds.has(thread.id))
+    .map((thread) => {
+      const participant = chatParticipantIds(thread).map(getPerson).filter(Boolean).find((person) => person.id !== own?.id);
+      return {
+        id: thread.id,
+        type: "direct",
+        title: participant?.name || thread.title || "Direct Chat",
+        meta: participant?.role || "Private conversation",
+        updatedAt: thread.updatedAt,
+        lastMessage: lastChatMessage(thread.id)
+      };
+    });
   const groupItems = state.chatThreads
     .filter((thread) => thread.type === "group")
     .filter(canSeeChatThread)
@@ -1880,7 +1896,7 @@ function visibleChatThreads() {
       updatedAt: thread.updatedAt,
       lastMessage: lastChatMessage(thread.id)
     }));
-  return [...groupItems, ...directItems].sort((a, b) => new Date(b.lastMessage?.createdAt || b.updatedAt || 0) - new Date(a.lastMessage?.createdAt || a.updatedAt || 0));
+  return [...groupItems, ...existingDirectItems, ...directItems].sort((a, b) => new Date(b.lastMessage?.createdAt || b.updatedAt || 0) - new Date(a.lastMessage?.createdAt || a.updatedAt || 0));
 }
 
 function lastChatMessage(threadId) {
