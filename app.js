@@ -924,10 +924,32 @@ function renderWorkspaceMenu() {
             <span class="workspace-avatar">${workspaceInitial(workspace.name)}</span>
             <span>${escapeHtml(workspace.name)}</span>
           </button>
-          ${isWorkspaceOwnerFor(workspace.id) ? `<button class="workspace-more-button" type="button" data-workspace-manage="${workspace.id}" aria-label="Manage ${escapeHtml(workspace.name)}">...</button>` : ""}
+          ${isWorkspaceOwnerFor(workspace.id) ? `
+            <span class="workspace-more-wrap">
+              <button class="workspace-more-button" type="button" data-workspace-menu="${workspace.id}" aria-label="Manage ${escapeHtml(workspace.name)}">...</button>
+              <span class="workspace-row-menu" id="workspaceRowMenu-${workspace.id}" hidden>
+                <button type="button" data-workspace-rename="${workspace.id}">Update Name</button>
+                <button type="button" data-workspace-delete="${workspace.id}">Delete Workspace</button>
+              </span>
+            </span>
+          ` : ""}
         </div>
       `).join("")
     : `<div class="empty">No workspaces yet.</div>`;
+}
+
+function closeWorkspaceRowMenus(exceptId = "") {
+  $$(".workspace-row-menu").forEach((menu) => {
+    menu.hidden = menu.id === `workspaceRowMenu-${exceptId}` ? menu.hidden : true;
+  });
+}
+
+function toggleWorkspaceRowMenu(workspaceId) {
+  const menu = $(`#workspaceRowMenu-${workspaceId}`);
+  if (!menu) return;
+  const nextHidden = !menu.hidden;
+  closeWorkspaceRowMenus(workspaceId);
+  menu.hidden = nextHidden;
 }
 
 function toggleProfileMenu(force) {
@@ -1257,9 +1279,9 @@ async function loadRemoteState(options = {}) {
 
   if (!options.skipRepair && canManageWorkspace()) {
     const repaired = await repairAcceptedInviteEditors();
-    if (repaired) {
-      await loadRemoteState({ skipRepair: true });
-    }
+  if (repaired) {
+    await loadRemoteState({ skipRepair: true });
+  }
   }
 }
 
@@ -1319,7 +1341,6 @@ async function repairAcceptedInviteEditors() {
     repaired = true;
   }
 
-  if (repaired) showToast("Team member links repaired");
   return repaired;
 }
 
@@ -2160,19 +2181,8 @@ async function deleteWorkspace(workspaceId = currentWorkspace?.id) {
 async function manageWorkspace(workspaceId) {
   const workspace = availableWorkspaces.find((item) => item.id === workspaceId);
   if (!workspace || !isWorkspaceOwnerFor(workspace.id)) return;
-  const action = prompt(`Manage ${workspace.name}\nType RENAME to update name or DELETE to delete workspace.`);
-  if (!action) return;
-  const cleanAction = action.trim().toUpperCase();
-  if (cleanAction === "RENAME") {
-    const newName = prompt("Workspace name", workspace.name);
-    if (newName) await updateWorkspaceName(newName, workspace.id);
-    return;
-  }
-  if (cleanAction === "DELETE") {
-    await deleteWorkspace(workspace.id);
-    return;
-  }
-  showToast("Type RENAME or DELETE");
+  const newName = prompt("Workspace name", workspace.name);
+  if (newName) await updateWorkspaceName(newName, workspace.id);
 }
 
 async function createInvite(email, roleChoice, customRole = "") {
@@ -2588,11 +2598,28 @@ function setupEvents() {
     }
   });
   $("#workspaceMenu").addEventListener("click", async (event) => {
-    const manageButton = event.target.closest("[data-workspace-manage]");
-    if (manageButton) {
+    const menuButton = event.target.closest("[data-workspace-menu]");
+    if (menuButton) {
       event.stopPropagation();
+      toggleWorkspaceRowMenu(menuButton.dataset.workspaceMenu);
+      return;
+    }
+
+    const renameWorkspaceButton = event.target.closest("[data-workspace-rename]");
+    if (renameWorkspaceButton) {
+      event.stopPropagation();
+      closeWorkspaceRowMenus();
       toggleWorkspaceMenu(false);
-      await manageWorkspace(manageButton.dataset.workspaceManage);
+      await manageWorkspace(renameWorkspaceButton.dataset.workspaceRename);
+      return;
+    }
+
+    const deleteWorkspaceButton = event.target.closest("[data-workspace-delete]");
+    if (deleteWorkspaceButton) {
+      event.stopPropagation();
+      closeWorkspaceRowMenus();
+      toggleWorkspaceMenu(false);
+      await deleteWorkspace(deleteWorkspaceButton.dataset.workspaceDelete);
       return;
     }
 
@@ -2623,6 +2650,7 @@ function setupEvents() {
   });
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#workspaceSwitcher")) toggleWorkspaceMenu(false);
+    if (!event.target.closest(".workspace-more-wrap")) closeWorkspaceRowMenus();
     if (!event.target.closest("#profileMenuWrap")) toggleProfileMenu(false);
   });
   $("#deleteAttendanceRangeBtn").addEventListener("click", () => bulkDeleteRange("attendance"));
