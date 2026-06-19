@@ -3079,4 +3079,14 @@ function switchView(viewName) {
   render();
 }
 
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator) || window.location.protocol !== "https:") return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js").catch(() => {
+      // PWA install still works without blocking the app if registration fails.
+    });
+  });
+}
+
+registerServiceWorker();
 bootApp();
