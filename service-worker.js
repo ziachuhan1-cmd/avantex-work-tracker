@@ -1,4 +1,4 @@
-const CACHE_NAME = "avantex-flow-v1";
+const CACHE_NAME = "avantex-flow-chat-v1";
 const APP_SHELL = [
   "/",
   "/index.html",
