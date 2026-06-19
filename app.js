@@ -1746,6 +1746,15 @@ function assignmentStatusText(status) {
   }[status] || status;
 }
 
+function priorityLabel(priority = "normal") {
+  return {
+    low: "Low",
+    normal: "Normal",
+    high: "High",
+    urgent: "Urgent"
+  }[priority] || priority;
+}
+
 function renderAssignments() {
   if (!$("#assignmentList")) return;
   const admin = canManageWorkspace();
@@ -1762,13 +1771,15 @@ function renderAssignments() {
         return `
           <article class="assignment-card">
             <div class="assignment-card-main">
-              <strong>${escapeHtml(assignment.title)}</strong>
-              <div class="meta-line">
-                <span>${escapeHtml(person?.name || "Unknown")}</span>
-                <span>${escapeHtml(assignment.workType)}</span>
-                <span>${escapeHtml(assignment.priority)}</span>
-                <span>${due}</span>
-                <span class="badge ${assignment.status}">${assignmentStatusText(assignment.status)}</span>
+              <div class="assignment-title-row">
+                <strong>${escapeHtml(assignment.title)}</strong>
+                <span class="assignment-status ${assignment.status}">${assignmentStatusText(assignment.status)}</span>
+              </div>
+              <div class="assignment-meta-grid">
+                <span><small>Owner</small>${escapeHtml(person?.name || "Unknown")}</span>
+                <span><small>Type</small>${escapeHtml(assignment.workType)}</span>
+                <span><small>Priority</small>${priorityLabel(assignment.priority)}</span>
+                <span><small>Due</small>${due}</span>
               </div>
               ${assignment.notes ? `<div class="assignment-notes">${escapeHtml(assignment.notes)}</div>` : ""}
             </div>
