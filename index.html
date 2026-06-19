@@ -29,7 +29,7 @@
         display: none !important;
       }
     </style>
-    <link rel="stylesheet" href="styles.css?v=20260620-chat">
+    <link rel="stylesheet" href="styles.css?v=20260620-chatbox">
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   </head>
   <body class="is-booting">
@@ -215,6 +215,17 @@
                 <button class="small-button editor-only-action" data-view-jump="work" type="button">Add</button>
               </div>
               <div class="compact-list" id="dashboardWork"></div>
+            </section>
+
+            <section class="panel dashboard-chatbox">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Messages</span>
+                  <h3>ChatBox</h3>
+                </div>
+                <button class="small-button" data-view-jump="chat" type="button">Open</button>
+              </div>
+              <div class="dashboard-chat-list" id="dashboardChatBox"></div>
             </section>
 
             <section class="panel">
@@ -736,7 +747,7 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="app.js?v=20260620-chat-fix"></script>
+    <script src="app.js?v=20260620-chatbox"></script>
   </body>
 </html>
 
