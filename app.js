@@ -1076,6 +1076,7 @@ function applyAccessControls() {
 }
 
 function showAuthGate(message = "") {
+  document.body.classList.remove("is-booting");
   $("#authGate").classList.add("is-active");
   if (message) {
     openAuthPage(authMode, message);
@@ -1087,6 +1088,7 @@ function showAuthGate(message = "") {
 }
 
 function hideAuthGate() {
+  document.body.classList.remove("is-booting");
   $("#authGate").classList.remove("is-active");
   $("#authGate").classList.remove("is-auth-page");
 }
@@ -1448,7 +1450,7 @@ async function signOut() {
   workspaceMemberships = [];
   availableWorkspaces = [];
   workspaceInvites = [];
-  state = { team: [], attendance: [], work: [], assignments: [] };
+  state = { team: [], attendance: [], work: [], assignments: [], chatThreads: [], chatMessages: [] };
   lastSyncedAt = null;
   stopAutoRefresh();
   toggleProfileMenu(false);
@@ -3267,7 +3269,7 @@ function setupEvents() {
 
   $("#clearDataBtn").addEventListener("click", () => {
     if (confirm("Clear all team members, attendance, and work data from this browser?")) {
-      state = { team: [], attendance: [], work: [], assignments: [] };
+      state = { team: [], attendance: [], work: [], assignments: [], chatThreads: [], chatMessages: [] };
       saveState("All data cleared");
     }
   });
