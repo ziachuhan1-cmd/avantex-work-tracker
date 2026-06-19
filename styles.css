@@ -856,7 +856,8 @@ textarea:focus {
 .timeline,
 .work-list,
 .team-list,
-.invite-list {
+.invite-list,
+.assignment-list {
   display: grid;
   gap: 10px;
 }
@@ -935,6 +936,7 @@ textarea:focus {
 .person-row,
 .work-card,
 .team-card,
+.assignment-card,
 .invite-row,
 .timeline-item {
   display: grid;
@@ -1083,6 +1085,29 @@ textarea:focus {
 .team-card {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+}
+
+.assignment-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.assignment-card-main {
+  min-width: 0;
+}
+
+.assignment-notes {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.assignment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .table-wrap {
