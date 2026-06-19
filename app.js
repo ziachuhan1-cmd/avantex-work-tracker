@@ -18,7 +18,7 @@ if (!IS_LOCAL_PREVIEW && window.location.hostname !== CANONICAL_HOST) {
 
 const sampleTeam = [];
 
-let state = { team: [], attendance: [], work: [] };
+let state = { team: [], attendance: [], work: [], assignments: [] };
 let toastTimer = null;
 let supabaseClient = null;
 let usingSupabase = false;
@@ -207,7 +207,8 @@ function loadState() {
     return {
       team: sampleTeam,
       attendance: [],
-      work: []
+      work: [],
+      assignments: []
     };
   }
 
@@ -216,10 +217,11 @@ function loadState() {
     return {
       team: Array.isArray(parsed.team) ? parsed.team : sampleTeam,
       attendance: Array.isArray(parsed.attendance) ? parsed.attendance : [],
-      work: Array.isArray(parsed.work) ? parsed.work : []
+      work: Array.isArray(parsed.work) ? parsed.work : [],
+      assignments: Array.isArray(parsed.assignments) ? parsed.assignments : []
     };
   } catch {
-    return { team: sampleTeam, attendance: [], work: [] };
+    return { team: sampleTeam, attendance: [], work: [], assignments: [] };
   }
 }
 
@@ -1020,16 +1022,20 @@ function applyAccessControls() {
   const attendanceTab = document.querySelector('[data-view="attendance"]');
   const workTab = document.querySelector('[data-view="work"]');
   const teamTab = document.querySelector('[data-view="team"]');
+  const assignmentsTab = document.querySelector('[data-view="assignments"]');
   const adminTab = document.querySelector('[data-view="admin"]');
   if (attendanceTab) attendanceTab.hidden = admin || !currentWorkspace;
   if (workTab) workTab.hidden = admin || !currentWorkspace;
   if (teamTab) teamTab.hidden = !admin || !currentWorkspace;
+  if (assignmentsTab) assignmentsTab.hidden = !currentWorkspace;
   if (adminTab) adminTab.hidden = !admin || !currentWorkspace;
   document.body.classList.remove("is-booting");
   const manualPanel = document.querySelector(".manual-member-panel");
   if (manualPanel) manualPanel.style.display = "none";
   $("#teamForm").style.display = "none";
   $("#inviteForm").style.display = admin ? "grid" : "none";
+  const assignmentAdminPanel = document.querySelector(".assignment-admin-panel");
+  if (assignmentAdminPanel) assignmentAdminPanel.style.display = admin ? "" : "none";
   $$(".admin-metric").forEach((item) => {
     item.style.display = admin ? "" : "none";
   });
@@ -1042,6 +1048,7 @@ function applyAccessControls() {
   if ($("#exportJsonBtn")) $("#exportJsonBtn").style.display = "none";
   $("#attendanceForm").classList.toggle("is-disabled", removed);
   $("#workForm").classList.toggle("is-disabled", removed);
+  $("#assignmentForm")?.classList.toggle("is-disabled", removed);
   $$("#attendanceForm input, #attendanceForm select, #attendanceForm button, #workForm input, #workForm select, #workForm textarea, #workForm button").forEach((field) => {
     field.disabled = removed || (!canManageWorkspace() && actionTeam().length === 0);
   });
@@ -1184,7 +1191,7 @@ async function loadRemoteState(options = {}) {
     currentWorkspace = null;
     availableWorkspaces = [];
     workspaceInvites = [];
-    state = { team: [], attendance: [], work: [] };
+    state = { team: [], attendance: [], work: [], assignments: [] };
     return;
   }
 
@@ -1207,21 +1214,23 @@ async function loadRemoteState(options = {}) {
 
   if (!currentWorkspace) {
     workspaceInvites = [];
-    state = { team: [], attendance: [], work: [] };
+    state = { team: [], attendance: [], work: [], assignments: [] };
     return;
   }
 
-  const [editorsResult, attendanceResult, workResult, workspaceMembersResult] = await Promise.all([
+  const [editorsResult, attendanceResult, workResult, workspaceMembersResult, assignmentsResult] = await Promise.all([
     supabaseClient.from("editors").select("*").eq("workspace_id", currentWorkspace.id).order("created_at", { ascending: true }),
     supabaseClient.from("attendance_logs").select("*").eq("workspace_id", currentWorkspace.id).order("happened_at", { ascending: false }),
     supabaseClient.from("daily_work").select("*").eq("workspace_id", currentWorkspace.id).order("work_date", { ascending: false }),
-    supabaseClient.from("memberships").select("*").eq("workspace_id", currentWorkspace.id)
+    supabaseClient.from("memberships").select("*").eq("workspace_id", currentWorkspace.id),
+    supabaseClient.from("work_assignments").select("*").eq("workspace_id", currentWorkspace.id).order("created_at", { ascending: false })
   ]);
 
   if (editorsResult.error) throw editorsResult.error;
   if (attendanceResult.error) throw attendanceResult.error;
   if (workResult.error) throw workResult.error;
   if (workspaceMembersResult.error) throw workspaceMembersResult.error;
+  if (assignmentsResult.error) throw assignmentsResult.error;
 
   if (canManageWorkspace()) {
     const invitesResult = await supabaseClient
@@ -1236,12 +1245,16 @@ async function loadRemoteState(options = {}) {
   }
 
   const memberByUserId = new Map((workspaceMembersResult.data || []).map((membership) => [membership.user_id, membership]));
+  const emailByUserId = new Map((workspaceInvites || [])
+    .filter((invite) => invite.accepted_by && invite.email)
+    .map((invite) => [invite.accepted_by, invite.email]));
 
   state = {
     team: (editorsResult.data || []).map((editor) => ({
       id: editor.id,
       workspaceId: editor.workspace_id,
       userId: editor.user_id,
+      email: emailByUserId.get(editor.user_id) || "",
       name: editor.name,
       role: editor.role || "Team Member",
       shift: editor.shift || "",
@@ -1270,6 +1283,21 @@ async function loadRemoteState(options = {}) {
       details: entry.details || "",
       status: entry.status,
       createdAt: entry.created_at
+    })),
+    assignments: (assignmentsResult.data || []).map((entry) => ({
+      id: entry.id,
+      workspaceId: entry.workspace_id,
+      personId: entry.assigned_to,
+      assignedBy: entry.assigned_by,
+      title: entry.title,
+      workType: entry.work_type,
+      url: entry.work_url || "",
+      notes: entry.notes || "",
+      priority: entry.priority || "normal",
+      status: entry.status || "assigned",
+      dueDate: entry.due_date || "",
+      createdAt: entry.created_at,
+      updatedAt: entry.updated_at
     }))
   };
 
@@ -1381,7 +1409,7 @@ async function signOut() {
   workspaceMemberships = [];
   availableWorkspaces = [];
   workspaceInvites = [];
-  state = { team: [], attendance: [], work: [] };
+  state = { team: [], attendance: [], work: [], assignments: [] };
   lastSyncedAt = null;
   stopAutoRefresh();
   toggleProfileMenu(false);
@@ -1451,6 +1479,7 @@ function populateSelects() {
   const selectedReport = $("#reportPerson").value;
   const selectedAdmin = $("#adminPerson").value;
   const selectedBulk = $("#bulkEditor").value;
+  const selectedAssignment = $("#assignmentPerson")?.value;
   const personOptions = people.map((person) => `<option value="${person.id}">${escapeHtml(person.name)} | ${escapeHtml(person.role)}</option>`).join("");
   const allPersonOptions = allPeople.map((person) => `<option value="${person.id}">${escapeHtml(person.name)} | ${escapeHtml(person.role)}</option>`).join("");
   $("#attendancePerson").innerHTML = personOptions;
@@ -1460,11 +1489,13 @@ function populateSelects() {
   $("#reportPerson").innerHTML = canManageWorkspace() ? `<option value="all">All team members</option>${allPersonOptions}` : allPersonOptions;
   $("#adminPerson").innerHTML = `<option value="all">All team members</option>${allPersonOptions}`;
   $("#bulkEditor").innerHTML = `<option value="all">All team members</option>${allPersonOptions}`;
+  if ($("#assignmentPerson")) $("#assignmentPerson").innerHTML = activeTeam().map((person) => `<option value="${person.id}">${escapeHtml(person.name)} | ${escapeHtml(person.role)}</option>`).join("");
   $("#attendancePerson").value = selectedAttendance || $("#attendancePerson").value;
   $("#workPerson").value = selectedWork || $("#workPerson").value;
   $("#reportPerson").value = selectedReport || (canManageWorkspace() ? "all" : $("#reportPerson").value);
   $("#adminPerson").value = selectedAdmin || "all";
   $("#bulkEditor").value = selectedBulk || "all";
+  if ($("#assignmentPerson")) $("#assignmentPerson").value = selectedAssignment || $("#assignmentPerson").value;
 }
 
 function render() {
@@ -1476,6 +1507,7 @@ function render() {
   renderAttendanceLog();
   renderWorkLog();
   renderTeam();
+  renderAssignments();
   renderReports();
   renderAdminControls();
 }
@@ -1674,6 +1706,61 @@ function renderTeam() {
       </article>
     `).join("")
     : emptyState("No active team members.");
+}
+
+function assignmentStatusText(status) {
+  return {
+    assigned: "Assigned",
+    in_progress: "In Progress",
+    submitted: "Submitted",
+    approved: "Approved",
+    revision: "Revision",
+    help: "Need Help"
+  }[status] || status;
+}
+
+function renderAssignments() {
+  if (!$("#assignmentList")) return;
+  const admin = canManageWorkspace();
+  const own = ownTeamMember();
+  const visibleAssignments = admin
+    ? state.assignments
+    : state.assignments.filter((assignment) => assignment.personId === own?.id);
+  $("#assignmentListKicker").textContent = admin ? "Team Work" : "My Work";
+  $("#assignmentListTitle").textContent = admin ? "Assigned Work" : "My Assigned Work";
+  $("#assignmentList").innerHTML = visibleAssignments.length
+    ? visibleAssignments.map((assignment) => {
+        const person = getPerson(assignment.personId);
+        const due = assignment.dueDate ? formatDateOnly(assignment.dueDate) : "No due date";
+        return `
+          <article class="assignment-card">
+            <div class="assignment-card-main">
+              <strong>${escapeHtml(assignment.title)}</strong>
+              <div class="meta-line">
+                <span>${escapeHtml(person?.name || "Unknown")}</span>
+                <span>${escapeHtml(assignment.workType)}</span>
+                <span>${escapeHtml(assignment.priority)}</span>
+                <span>${due}</span>
+                <span class="badge ${assignment.status}">${assignmentStatusText(assignment.status)}</span>
+              </div>
+              ${assignment.notes ? `<div class="assignment-notes">${escapeHtml(assignment.notes)}</div>` : ""}
+            </div>
+            <div class="assignment-actions">
+              ${assignment.url ? `<a class="ghost-button" href="${escapeHtml(assignment.url)}" target="_blank" rel="noopener">Open Link</a>` : ""}
+              ${admin ? `
+                <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:approved">Approve</button>
+                <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:revision">Revision</button>
+                <button class="ghost-button danger-text" type="button" data-delete-assignment="${assignment.id}">Delete</button>
+              ` : `
+                <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:in_progress">Start</button>
+                <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:submitted">Submit</button>
+                <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:help">Need Help</button>
+              `}
+            </div>
+          </article>
+        `;
+      }).join("")
+    : emptyState(canManageWorkspace() ? "No work assigned yet." : "No assignments yet.");
 }
 
 function renderAdminControls() {
@@ -2209,6 +2296,99 @@ async function createInvite(email, roleChoice, customRole = "") {
   await sendInviteEmail(inviteEmail, token, roleConfig.roleLabel);
 }
 
+async function sendAssignmentEmail(person, assignment) {
+  if (!person?.email) {
+    showToast("Assignment saved. Email not sent because member email was not found.");
+    return false;
+  }
+  const content = {
+    to_email: person.email,
+    to_name: person.name,
+    title: `New assignment: ${assignment.title}`,
+    subject: `New assignment: ${assignment.title}`,
+    message: [
+      `You have a new assignment in ${currentWorkspace?.name || "your workspace"}.`,
+      `Title: ${assignment.title}`,
+      `Type: ${assignment.workType}`,
+      `Priority: ${assignment.priority}`,
+      assignment.dueDate ? `Due date: ${formatDateOnly(assignment.dueDate)}` : "",
+      assignment.url ? `Link: ${assignment.url}` : "",
+      assignment.notes ? `Instructions: ${assignment.notes}` : "",
+      `Open ${APP_REDIRECT_URL} to update status.`
+    ].filter(Boolean).join("\n")
+  };
+  if (await ensureEmailJsReady()) {
+    try {
+      await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, content, { publicKey: EMAILJS_PUBLIC_KEY });
+      showToast(`Assignment email sent to ${person.email}`);
+      return true;
+    } catch (error) {
+      showToast(error?.text || error?.message || "Assignment saved. Email failed.");
+    }
+  }
+  return false;
+}
+
+async function createAssignment(data) {
+  if (!currentWorkspace || !canManageWorkspace()) return;
+  const person = getPerson(data.personId);
+  if (!person) return showToast("Select a team member");
+  const title = data.title.trim();
+  if (!title) return showToast("Task title required");
+  const payload = {
+    workspace_id: currentWorkspace.id,
+    assigned_to: person.id,
+    assigned_by: currentUser.id,
+    title,
+    work_type: data.workType,
+    work_url: data.url.trim() || null,
+    notes: data.notes.trim() || null,
+    priority: data.priority,
+    status: "assigned",
+    due_date: data.dueDate || null
+  };
+  const { data: inserted, error } = await supabaseClient
+    .from("work_assignments")
+    .insert(payload)
+    .select()
+    .maybeSingle();
+  if (error) return showToast(error.message);
+  await refreshRemote("Work assigned");
+  await sendAssignmentEmail(person, {
+    title,
+    workType: data.workType,
+    url: data.url.trim(),
+    notes: data.notes.trim(),
+    priority: data.priority,
+    dueDate: data.dueDate,
+    id: inserted?.id
+  });
+}
+
+async function updateAssignmentStatus(assignmentId, status) {
+  const assignment = state.assignments.find((item) => item.id === assignmentId);
+  if (!assignment) return;
+  const admin = canManageWorkspace();
+  const own = ownTeamMember();
+  if (!admin && assignment.personId !== own?.id) return showToast("You can only update your own assignments");
+  const allowed = admin ? ["approved", "revision", "assigned", "in_progress", "submitted"] : ["in_progress", "submitted", "help"];
+  if (!allowed.includes(status)) return showToast("Status not allowed");
+  const { error } = await supabaseClient
+    .from("work_assignments")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", assignmentId);
+  if (error) return showToast(error.message);
+  await refreshRemote("Assignment updated");
+}
+
+async function deleteAssignment(assignmentId) {
+  if (!canManageWorkspace()) return;
+  if (!confirm("Delete this assignment?")) return;
+  const { error } = await supabaseClient.from("work_assignments").delete().eq("id", assignmentId);
+  if (error) return showToast(error.message);
+  await refreshRemote("Assignment deleted");
+}
+
 async function copyInviteLink(token) {
   const url = inviteUrl(token);
   try {
@@ -2421,6 +2601,17 @@ function setupEvents() {
     if (remove) {
       await removeTeamMember(remove.dataset.deletePerson);
     }
+
+    const assignmentStatus = event.target.closest("[data-assignment-status]");
+    if (assignmentStatus) {
+      const [assignmentId, status] = assignmentStatus.dataset.assignmentStatus.split(":");
+      await updateAssignmentStatus(assignmentId, status);
+    }
+
+    const deleteAssignmentButton = event.target.closest("[data-delete-assignment]");
+    if (deleteAssignmentButton) {
+      await deleteAssignment(deleteAssignmentButton.dataset.deleteAssignment);
+    }
   });
 
   document.body.addEventListener("change", async (event) => {
@@ -2501,6 +2692,20 @@ function setupEvents() {
     } else {
       saveState("Work update saved");
     }
+  });
+
+  $("#assignmentForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await createAssignment({
+      personId: $("#assignmentPerson").value,
+      title: $("#assignmentTitle").value,
+      workType: $("#assignmentType").value,
+      url: $("#assignmentUrl").value,
+      priority: $("#assignmentPriority").value,
+      dueDate: $("#assignmentDueDate").value,
+      notes: $("#assignmentNotes").value
+    });
+    event.target.reset();
   });
 
   $("#teamForm").addEventListener("submit", async (event) => {
@@ -2704,7 +2909,7 @@ function setupEvents() {
 
   $("#clearDataBtn").addEventListener("click", () => {
     if (confirm("Clear all team members, attendance, and work data from this browser?")) {
-      state = { team: [], attendance: [], work: [] };
+      state = { team: [], attendance: [], work: [], assignments: [] };
       saveState("All data cleared");
     }
   });
