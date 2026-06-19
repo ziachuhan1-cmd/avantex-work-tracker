@@ -6,13 +6,13 @@
     <meta name="theme-color" content="#0f1a24">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Avantex">
+    <meta name="apple-mobile-web-app-title" content="Avantex Flow">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="description" content="Attendance, assignments, and daily work tracking for teams.">
-    <title>Avantex Work Tracker</title>
+    <title>Avantex Flow</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="icons/avantex-icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="icons/avantex-icon.svg">
+    <link rel="icon" href="icons/avantex-flow-app.png" type="image/png">
+    <link rel="apple-touch-icon" href="icons/avantex-flow-app.png">
     <style>
       body.is-booting [data-view="attendance"],
       body.is-booting [data-view="work"],
@@ -27,21 +27,17 @@
         display: none !important;
       }
     </style>
-    <link rel="stylesheet" href="styles.css?v=20260620-mobile-final">
+    <link rel="stylesheet" href="styles.css?v=20260620-avantex-flow">
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   </head>
   <body class="is-booting">
     <div class="app-shell">
       <aside class="sidebar" aria-label="Main navigation">
         <div class="brand">
-          <div class="brand-mark" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
+          <img class="brand-logo" src="icons/avantex-flow-app.png" alt="" aria-hidden="true">
           <div>
-            <p>Avantex</p>
-            <h1>Work Tracker</h1>
+            <p>FOCUS. ORGANIZE. FLOW.</p>
+            <h1>Avantex Flow</h1>
           </div>
         </div>
 
@@ -153,7 +149,7 @@
           <form class="form-stack compact-form" id="workspaceForm">
             <label>
               Workspace Name
-              <input id="workspaceName" type="text" placeholder="Avantex Work Tracker" required>
+              <input id="workspaceName" type="text" placeholder="Avantex Flow" required>
             </label>
             <button class="primary-button" type="submit">Create Workspace</button>
           </form>
@@ -614,14 +610,10 @@
       <section class="auth-landing">
         <header class="auth-nav">
           <div class="brand auth-brand">
-            <div class="brand-mark" aria-hidden="true">
-              <span></span>
-              <span></span>
-              <span></span>
-            </div>
+            <img class="brand-logo" src="icons/avantex-flow-app.png" alt="" aria-hidden="true">
             <div>
-              <p>Avantex</p>
-              <h1>Work Tracker</h1>
+              <p>FOCUS. ORGANIZE. FLOW.</p>
+              <h1>Avantex Flow</h1>
             </div>
           </div>
           <div class="auth-nav-actions">
@@ -655,7 +647,7 @@
           <div class="auth-preview" aria-hidden="true">
             <div class="preview-shell">
               <div class="preview-sidebar">
-                <strong>Avantex</strong>
+                <strong>Avantex Flow</strong>
                 <span>Dashboard</span>
                 <span>Attendance</span>
                 <span>Daily Updates</span>
@@ -706,7 +698,7 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="app.js?v=20260616-emailjs"></script>
+    <script src="app.js?v=20260620-avantex-flow"></script>
   </body>
 </html>
 
