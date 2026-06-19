@@ -923,6 +923,7 @@ function updateSyncStatus() {
 function applyAccessControls() {
   const admin = canManageWorkspace();
   const removed = isRemovedFromWorkspace();
+  document.body.classList.remove("is-booting");
   document.querySelector('[data-view="attendance"]').style.display = admin ? "none" : "";
   document.querySelector('[data-view="work"]').style.display = admin ? "none" : "";
   document.querySelector('[data-view="team"]').style.display = admin && currentWorkspace ? "" : "none";
