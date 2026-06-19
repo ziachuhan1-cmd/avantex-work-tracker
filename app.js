@@ -68,7 +68,7 @@ function authErrorMessage(error) {
     return "This email already has an account. Switch to Login or use Forgot / Set Password.";
   }
   if (lower.includes("redirect") || lower.includes("not allowed")) {
-    return "Auth redirect was blocked. Use the live Avantex Work link, then try again.";
+    return "Auth redirect was blocked. Use the live Avantex Flow link, then try again.";
   }
   if (lower.includes("role_label") || lower.includes("invite row")) {
     return "Invite setup needs the latest Supabase SQL patch. Ask the owner to run invite-role-label-repair.sql, then login again with the invited email.";
@@ -103,7 +103,7 @@ function inviteEmailContent(email, token, roleLabel = "Team Member") {
     invite_link: url,
     subject: `${workspaceName} invitation`,
     message: [
-      `You have been invited to join ${workspaceName} on Avantex Work Tracker as ${roleLabel}.`,
+      `You have been invited to join ${workspaceName} on Avantex Flow as ${roleLabel}.`,
       "",
       "Open this invite link:",
       url,
@@ -1108,7 +1108,7 @@ function updateAuthMode(mode, message = "") {
     ? `Password changed? <button type="button" data-auth-mode="login">Login</button>`
     : isSignup
     ? `Already have an account? <button type="button" data-auth-mode="login">Login</button>`
-    : `New to Avantex? <button type="button" data-auth-mode="signup">Create account</button>`;
+    : `New to Avantex Flow? <button type="button" data-auth-mode="signup">Create account</button>`;
   $("#authMessage").textContent = message || (isReset ? "Enter a new password with at least 6 characters." : isSignup ? "Use the same email address if you received an invite." : "Login with your workspace account.");
 }
 
