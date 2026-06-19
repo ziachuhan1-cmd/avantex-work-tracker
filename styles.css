@@ -1088,12 +1088,82 @@ textarea:focus {
 }
 
 .assignment-card {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
+  gap: 14px;
 }
 
 .assignment-card-main {
   min-width: 0;
+}
+
+.assignment-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.assignment-title-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.assignment-status {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #edf2f7;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.assignment-status.in_progress,
+.assignment-status.submitted {
+  background: rgba(29, 95, 209, 0.12);
+  color: var(--blue);
+}
+
+.assignment-status.approved {
+  background: rgba(22, 139, 91, 0.13);
+  color: var(--green);
+}
+
+.assignment-status.revision,
+.assignment-status.help {
+  background: rgba(196, 52, 50, 0.12);
+  color: var(--red);
+}
+
+.assignment-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.assignment-meta-grid span {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.assignment-meta-grid small {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .assignment-notes {
@@ -1110,6 +1180,10 @@ textarea:focus {
   gap: 8px;
 }
 
+.assignment-actions .ghost-button {
+  min-height: 38px;
+}
+
 .mini-assignment {
   padding: 12px;
   border: 1px solid var(--line);
@@ -1120,6 +1194,26 @@ textarea:focus {
 .mini-assignment strong {
   display: block;
   margin-bottom: 6px;
+}
+
+@media (max-width: 900px) {
+  .assignment-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assignment-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .assignment-title-row {
+    display: grid;
+  }
+
+  .assignment-meta-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .table-wrap {
