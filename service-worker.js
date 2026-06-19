@@ -1,11 +1,14 @@
-const CACHE_NAME = "avantex-work-tracker-v1";
+const CACHE_NAME = "avantex-flow-v1";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/styles.css",
   "/app.js",
   "/manifest.json",
-  "/icons/avantex-icon.svg"
+  "/icons/avantex-flow-192.png",
+  "/icons/avantex-flow-512.png",
+  "/icons/avantex-flow-app.png",
+  "/icons/avantex-flow-web.png"
 ];
 
 self.addEventListener("install", (event) => {
