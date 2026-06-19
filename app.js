@@ -616,6 +616,12 @@ function isWorkspaceOwner() {
   return membership?.active !== false && membership?.role === "owner";
 }
 
+function isWorkspaceOwnerFor(workspaceId) {
+  if (!usingSupabase) return true;
+  const membership = workspaceMemberships.find((item) => item.workspace_id === workspaceId);
+  return membership?.active !== false && membership?.role === "owner";
+}
+
 function membershipRoleLabel(role = currentMembership()?.role) {
   return role === "owner" ? "Owner" : role === "admin" ? "Admin" : "Member";
 }
@@ -913,10 +919,13 @@ function renderWorkspaceMenu() {
   const list = $("#workspaceMenuList");
   list.innerHTML = availableWorkspaces.length
     ? availableWorkspaces.map((workspace) => `
-        <button class="workspace-option ${workspace.id === currentWorkspace?.id ? "is-active" : ""}" type="button" data-workspace-id="${workspace.id}">
-          <span class="workspace-avatar">${workspaceInitial(workspace.name)}</span>
-          <span>${escapeHtml(workspace.name)}</span>
-        </button>
+        <div class="workspace-option-row ${workspace.id === currentWorkspace?.id ? "is-active" : ""}">
+          <button class="workspace-option" type="button" data-workspace-id="${workspace.id}">
+            <span class="workspace-avatar">${workspaceInitial(workspace.name)}</span>
+            <span>${escapeHtml(workspace.name)}</span>
+          </button>
+          ${isWorkspaceOwnerFor(workspace.id) ? `<button class="workspace-more-button" type="button" data-workspace-manage="${workspace.id}" aria-label="Manage ${escapeHtml(workspace.name)}">...</button>` : ""}
+        </div>
       `).join("")
     : `<div class="empty">No workspaces yet.</div>`;
 }
@@ -1460,7 +1469,7 @@ function renderWorkspacePanel() {
   $("#workspaceRoleLabel").textContent = currentMembership()?.role || "none";
   const settingsPanel = $("#workspaceSettingsPanel");
   if (settingsPanel) {
-    settingsPanel.hidden = !currentWorkspace || !isWorkspaceOwner();
+    settingsPanel.hidden = true;
     const settingsName = $("#workspaceSettingsName");
     if (settingsName && document.activeElement !== settingsName) settingsName.value = currentWorkspace?.name || "";
   }
@@ -2105,43 +2114,65 @@ async function createWorkspace(name) {
   }
 }
 
-async function updateWorkspaceName(name) {
-  if (!currentWorkspace || !isWorkspaceOwner()) return;
+async function updateWorkspaceName(name, workspaceId = currentWorkspace?.id) {
+  const targetWorkspace = availableWorkspaces.find((workspace) => workspace.id === workspaceId) || currentWorkspace;
+  if (!targetWorkspace || !isWorkspaceOwnerFor(targetWorkspace.id)) return;
   const cleanName = name.trim();
   if (!cleanName) return showToast("Workspace name required");
   if (usingSupabase) {
     const rpcResult = await supabaseClient.rpc("update_workspace_name", {
-      target_workspace_id: currentWorkspace.id,
+      target_workspace_id: targetWorkspace.id,
       new_name: cleanName
     });
     if (rpcResult.error) {
-      const updateResult = await supabaseClient.from("workspaces").update({ name: cleanName }).eq("id", currentWorkspace.id);
+      const updateResult = await supabaseClient.from("workspaces").update({ name: cleanName }).eq("id", targetWorkspace.id);
       if (updateResult.error) return showToast(rpcResult.error.message || updateResult.error.message);
     }
     await refreshRemote("Workspace name updated");
     return;
   }
-  currentWorkspace.name = cleanName;
+  targetWorkspace.name = cleanName;
   showToast("Workspace name updated");
   render();
 }
 
-async function deleteWorkspace() {
-  if (!currentWorkspace || !isWorkspaceOwner()) return;
-  const workspaceName = currentWorkspace.name;
+async function deleteWorkspace(workspaceId = currentWorkspace?.id) {
+  const targetWorkspace = availableWorkspaces.find((workspace) => workspace.id === workspaceId) || currentWorkspace;
+  if (!targetWorkspace || !isWorkspaceOwnerFor(targetWorkspace.id)) return;
+  const workspaceName = targetWorkspace.name;
   const confirmation = prompt(`Type DELETE to remove ${workspaceName}. Member access will stop, but history stays saved.`);
   if (confirmation !== "DELETE") return;
   if (usingSupabase) {
-    const rpcResult = await supabaseClient.rpc("archive_workspace", { target_workspace_id: currentWorkspace.id });
+    const rpcResult = await supabaseClient.rpc("archive_workspace", { target_workspace_id: targetWorkspace.id });
     if (rpcResult.error) return showToast(rpcResult.error.message);
-    localStorage.removeItem(WORKSPACE_KEY);
+    availableWorkspaces = availableWorkspaces.filter((workspace) => workspace.id !== targetWorkspace.id);
+    workspaceMemberships = workspaceMemberships.filter((membership) => membership.workspace_id !== targetWorkspace.id);
+    if (currentWorkspace?.id === targetWorkspace.id) localStorage.removeItem(WORKSPACE_KEY);
     await refreshRemote("Workspace deleted");
     return;
   }
-  availableWorkspaces = availableWorkspaces.filter((workspace) => workspace.id !== currentWorkspace.id);
+  availableWorkspaces = availableWorkspaces.filter((workspace) => workspace.id !== targetWorkspace.id);
   currentWorkspace = availableWorkspaces[0] || null;
   render();
   showToast("Workspace deleted");
+}
+
+async function manageWorkspace(workspaceId) {
+  const workspace = availableWorkspaces.find((item) => item.id === workspaceId);
+  if (!workspace || !isWorkspaceOwnerFor(workspace.id)) return;
+  const action = prompt(`Manage ${workspace.name}\nType RENAME to update name or DELETE to delete workspace.`);
+  if (!action) return;
+  const cleanAction = action.trim().toUpperCase();
+  if (cleanAction === "RENAME") {
+    const newName = prompt("Workspace name", workspace.name);
+    if (newName) await updateWorkspaceName(newName, workspace.id);
+    return;
+  }
+  if (cleanAction === "DELETE") {
+    await deleteWorkspace(workspace.id);
+    return;
+  }
+  showToast("Type RENAME or DELETE");
 }
 
 async function createInvite(email, roleChoice, customRole = "") {
@@ -2557,6 +2588,14 @@ function setupEvents() {
     }
   });
   $("#workspaceMenu").addEventListener("click", async (event) => {
+    const manageButton = event.target.closest("[data-workspace-manage]");
+    if (manageButton) {
+      event.stopPropagation();
+      toggleWorkspaceMenu(false);
+      await manageWorkspace(manageButton.dataset.workspaceManage);
+      return;
+    }
+
     const workspaceButton = event.target.closest("[data-workspace-id]");
     if (workspaceButton) {
       toggleWorkspaceMenu(false);
@@ -2578,8 +2617,8 @@ function setupEvents() {
       return;
     }
     if (action === "settings") {
-      if (currentWorkspace && canManageWorkspace()) switchView("team");
-      else showToast("Workspace settings are available for admins");
+      if (currentWorkspace && isWorkspaceOwner()) await manageWorkspace(currentWorkspace.id);
+      else showToast("Workspace settings are available for owners");
     }
   });
   document.addEventListener("click", (event) => {
