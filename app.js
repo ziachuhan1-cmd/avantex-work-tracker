@@ -923,11 +923,15 @@ function updateSyncStatus() {
 function applyAccessControls() {
   const admin = canManageWorkspace();
   const removed = isRemovedFromWorkspace();
+  const attendanceTab = document.querySelector('[data-view="attendance"]');
+  const workTab = document.querySelector('[data-view="work"]');
+  const teamTab = document.querySelector('[data-view="team"]');
+  const adminTab = document.querySelector('[data-view="admin"]');
+  if (attendanceTab) attendanceTab.hidden = admin || !currentWorkspace;
+  if (workTab) workTab.hidden = admin || !currentWorkspace;
+  if (teamTab) teamTab.hidden = !admin || !currentWorkspace;
+  if (adminTab) adminTab.hidden = !admin || !currentWorkspace;
   document.body.classList.remove("is-booting");
-  document.querySelector('[data-view="attendance"]').style.display = admin ? "none" : "";
-  document.querySelector('[data-view="work"]').style.display = admin ? "none" : "";
-  document.querySelector('[data-view="team"]').style.display = admin && currentWorkspace ? "" : "none";
-  document.querySelector('[data-view="admin"]').style.display = admin && currentWorkspace ? "" : "none";
   const manualPanel = document.querySelector(".manual-member-panel");
   if (manualPanel) manualPanel.style.display = "none";
   $("#teamForm").style.display = "none";
