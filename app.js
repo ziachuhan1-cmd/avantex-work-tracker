@@ -1624,6 +1624,8 @@ function renderDashboard() {
     ? todayWork.slice().reverse().map(workCard).join("")
     : emptyState("No work updates for today.");
 
+  renderDashboardChatBox();
+
   const assignmentPeopleIds = new Set(people.map((person) => person.id));
   const dashboardAssignments = state.assignments
     .filter((assignment) => assignmentPeopleIds.has(assignment.personId))
@@ -1647,6 +1649,26 @@ function renderDashboard() {
         }).join("")
       : emptyState(canManageWorkspace() ? "No open assignments." : "No assigned work yet.");
   }
+}
+
+function renderDashboardChatBox() {
+  const target = $("#dashboardChatBox");
+  if (!target) return;
+  const threads = visibleChatThreads().slice(0, 4);
+  target.innerHTML = threads.length
+    ? threads.map((thread) => {
+        const last = thread.lastMessage;
+        return `
+          <button class="dashboard-chat-item" type="button" data-chat-open="${thread.id}">
+            <span class="chat-thread-avatar">${thread.type === "group" ? "G" : escapeHtml(thread.title.slice(0, 1).toUpperCase())}</span>
+            <span>
+              <strong>${escapeHtml(thread.title)}</strong>
+              <small>${escapeHtml(last?.body || thread.meta || "Start conversation")}</small>
+            </span>
+          </button>
+        `;
+      }).join("")
+    : emptyState(canManageWorkspace() ? "No chats yet. Open ChatBox to start a direct or group chat." : "No chats available yet.");
 }
 
 function personStatusRow(person, date = todayKey()) {
@@ -2954,6 +2976,12 @@ function setupEvents() {
     if (chatThreadButton) {
       selectedChatThreadId = chatThreadButton.dataset.chatThread;
       renderChat();
+    }
+
+    const dashboardChatButton = event.target.closest("[data-chat-open]");
+    if (dashboardChatButton) {
+      selectedChatThreadId = dashboardChatButton.dataset.chatOpen;
+      switchView("chat");
     }
 
     const createGroupButton = event.target.closest("#createGroupBtn");
