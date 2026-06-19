@@ -546,7 +546,7 @@ function getPerson(id) {
 }
 
 function activeTeam() {
-  return state.team.filter((person) => person.active !== false);
+  return state.team.filter((person) => person.active !== false && (!usingSupabase || person.userId));
 }
 
 function reportTeam() {
