@@ -1630,11 +1630,12 @@ function renderWorkspacePanel() {
         const roleText = inviteRoleLabel(invite);
         return `
           <article class="invite-row">
+            <span class="team-avatar invite-avatar">${profileInitial(invite.email)}</span>
             <div class="invite-main">
               <strong>${escapeHtml(invite.email)}</strong>
               <div class="meta-line">
-                <span>${escapeHtml(roleText)}</span>
-                <span>${accepted}</span>
+                <span class="role-chip">${escapeHtml(roleText)}</span>
+                <span class="badge in">${accepted}</span>
               </div>
             </div>
             <div class="admin-item-actions invite-actions">
@@ -1803,14 +1804,27 @@ function workCard(entry) {
 function renderTeam() {
   const roster = activeTeam();
   $("#teamList").innerHTML = roster.length
-    ? roster.map((person) => `
+    ? roster.map((person) => {
+      const status = statusFor(person.id);
+      const work = sumWork(workFor(person.id));
+      return `
       <article class="team-card">
-        <div>
-          <strong>${escapeHtml(person.name)}</strong>
+        <div class="team-member-profile">
+          <span class="team-avatar">${profileInitial(person.name)}</span>
+          <div class="team-member-copy">
+            <strong>${escapeHtml(person.name)}</strong>
+            <div class="meta-line">
+              <span class="role-chip">${escapeHtml(person.role)}</span>
+              <span>${escapeHtml(person.shift || "No shift added")}</span>
+              <span>${person.userId ? "Linked account" : "Invite pending"}</span>
+            </div>
+          </div>
+        </div>
+        <div class="team-member-pulse">
+          <span class="badge ${status.className}">${status.label}</span>
           <div class="meta-line">
-            <span>${escapeHtml(person.role)}</span>
-            <span>${escapeHtml(person.shift || "No shift added")}</span>
-            <span>Active</span>
+            <span>${hoursLabel(liveWorkingMinutes(person.id))}</span>
+            <span>${work.longVideos + work.shorts} tasks today</span>
           </div>
         </div>
         <div class="team-actions">
@@ -1826,7 +1840,8 @@ function renderTeam() {
           <button class="ghost-button danger-text" type="button" data-delete-person="${person.id}">Remove</button>
         </div>
       </article>
-    `).join("")
+    `;
+    }).join("")
     : emptyState("No active team members.");
 }
 
