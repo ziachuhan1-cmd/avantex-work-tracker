@@ -11,6 +11,7 @@ const SESSION_KEY = "avantex-supabase-session";
 const WORKSPACE_KEY = "avantex-current-workspace";
 const INVITE_KEY = "avantex-pending-invite";
 const THEME_KEY = "avantex-theme";
+const VIEW_KEY = "avantex-current-view";
 
 if (!IS_LOCAL_PREVIEW && window.location.hostname !== CANONICAL_HOST) {
   window.location.replace(`${APP_REDIRECT_URL}${window.location.pathname}${window.location.search}${window.location.hash}`);
@@ -553,7 +554,7 @@ function getPerson(id) {
 }
 
 function activeTeam() {
-  return state.team.filter((person) => person.active !== false && (!usingSupabase || person.userId));
+  return state.team.filter((person) => person.active !== false);
 }
 
 function reportTeam() {
@@ -815,6 +816,23 @@ function attendanceSummary(personId, date = todayKey()) {
   };
 }
 
+function liveWorkingMinutes(personId, date = todayKey()) {
+  const status = statusFor(personId, date);
+  if (status.className === "out") return 0;
+
+  const entries = status.entries;
+  const lastInIndex = entries.findLastIndex((entry) => entry.action === "in" || entry.action === "break_end");
+  if (lastInIndex < 0) return 0;
+
+  const currentSegment = entries.slice(lastInIndex);
+  const segmentStart = new Date(currentSegment[0].time);
+  const segmentEnd = status.className === "break"
+    ? new Date(currentSegment.find((entry) => entry.action === "break_start")?.time || new Date())
+    : new Date();
+
+  return Math.max(0, (segmentEnd - segmentStart) / 60000);
+}
+
 function hoursLabel(minutes) {
   if (!minutes) return "0h";
   const hours = Math.floor(minutes / 60);
@@ -1021,6 +1039,36 @@ function updateSyncStatus() {
   syncLabel.textContent = lastSyncedAt ? `Synced ${formatTime(lastSyncedAt)}` : "Sync pending";
 }
 
+function viewButton(viewName) {
+  return document.querySelector(`[data-view="${viewName}"]`);
+}
+
+function isViewAvailable(viewName) {
+  const button = viewButton(viewName);
+  const view = $(`#${viewName}View`);
+  return Boolean(button && view && !button.hidden);
+}
+
+function setActiveView(viewName, { persist = true } = {}) {
+  const safeViewName = isViewAvailable(viewName) ? viewName : "dashboard";
+  $$(".nav-tab").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.view === safeViewName);
+  });
+  $$(".view").forEach((view) => view.classList.remove("is-active"));
+  const view = $(`#${safeViewName}View`);
+  if (view) {
+    view.classList.add("is-active");
+    $("#viewTitle").textContent = view.dataset.title;
+  }
+  if (persist) localStorage.setItem(VIEW_KEY, safeViewName);
+  return safeViewName;
+}
+
+function activeViewName() {
+  const active = $(".view.is-active");
+  return active?.id?.replace(/View$/, "") || localStorage.getItem(VIEW_KEY) || "dashboard";
+}
+
 function applyAccessControls() {
   const admin = canManageWorkspace();
   const removed = isRemovedFromWorkspace();
@@ -1036,7 +1084,6 @@ function applyAccessControls() {
   if (assignmentsTab) assignmentsTab.hidden = !currentWorkspace;
   if (chatTab) chatTab.hidden = !currentWorkspace;
   if (adminTab) adminTab.hidden = !admin || !currentWorkspace;
-  document.body.classList.remove("is-booting");
   const manualPanel = document.querySelector(".manual-member-panel");
   if (manualPanel) manualPanel.style.display = "none";
   $("#teamForm").style.display = "none";
@@ -1067,12 +1114,10 @@ function applyAccessControls() {
     removedNotice.hidden = !removed;
     removedNotice.textContent = removed ? "You have been removed from this workspace by an admin or owner. Your history is still available, but attendance and work updates are disabled until you are added again." : "";
   }
-  if (admin && ($("#attendanceView").classList.contains("is-active") || $("#workView").classList.contains("is-active"))) {
-    switchView("dashboard");
-  }
-  if (!admin && ($("#teamView").classList.contains("is-active") || $("#adminView").classList.contains("is-active"))) {
-    switchView("dashboard");
-  }
+  const savedView = localStorage.getItem(VIEW_KEY) || activeViewName();
+  const requestedView = document.body.classList.contains("is-booting") ? savedView : activeViewName();
+  setActiveView(isViewAvailable(requestedView) ? requestedView : savedView, { persist: false });
+  document.body.classList.remove("is-booting");
 }
 
 function showAuthGate(message = "") {
@@ -1602,7 +1647,7 @@ function renderDashboard() {
   const visibleIds = new Set(people.map((person) => person.id));
   const todayWork = state.work.filter((entry) => entry.date === date && visibleIds.has(entry.personId));
   const totals = sumWork(todayWork);
-  const totalMinutes = people.reduce((sum, person) => sum + attendanceSummary(person.id, date).workingMinutes, 0);
+  const totalMinutes = people.reduce((sum, person) => sum + liveWorkingMinutes(person.id, date), 0);
   const totalMembers = canManageWorkspace() ? activeTeam().length : people.length;
 
   $("#metricDay").textContent = formatDay(date);
@@ -1671,7 +1716,7 @@ function personStatusRow(person, date = todayKey()) {
         <div class="meta-line">
           <span>${escapeHtml(person.role)}</span>
           <span>${summary.firstIn ? `In ${formatTime(summary.firstIn.time)}` : "No in time"}</span>
-          <span>${hoursLabel(summary.workingMinutes)}</span>
+          <span>${hoursLabel(liveWorkingMinutes(person.id, date))}</span>
           <span>${work.longVideos + work.shorts} tasks</span>
         </div>
       </div>
@@ -3035,24 +3080,20 @@ function setupEvents() {
         showToast("Create or select a workspace first");
         return;
       }
-      const { error } = await supabaseClient.from("daily_work").upsert(
-        {
-          workspace_id: currentWorkspace.id,
-          editor_id: workEntry.personId,
-          work_date: workEntry.date,
-          long_videos: workEntry.longVideos,
-          shorts: workEntry.shorts,
-          thumbnails: workEntry.thumbnails,
-          other_count: workEntry.otherCount,
-          details: workEntry.details || null,
-          status: workEntry.status,
-          created_by: currentUser.id,
-          updated_at: new Date().toISOString()
-        },
-        { onConflict: "workspace_id,editor_id,work_date" }
-      );
+      const { error } = await supabaseClient.rpc("save_daily_work_rpc", {
+        target_editor_id: workEntry.personId,
+        target_work_date: workEntry.date,
+        target_long_videos: workEntry.longVideos,
+        target_shorts: workEntry.shorts,
+        target_thumbnails: workEntry.thumbnails,
+        target_other_count: workEntry.otherCount,
+        target_details: workEntry.details || null,
+        target_status: workEntry.status
+      });
       if (error) {
-        showToast(error.message);
+        showToast(error.message?.includes("function save_daily_work_rpc")
+          ? "Run daily-work-rpc-fix.sql in Supabase, then try again."
+          : error.message);
         return;
       }
     } else {
@@ -3397,11 +3438,7 @@ function setupEvents() {
 }
 
 function switchView(viewName) {
-  $$(".nav-tab").forEach((button) => button.classList.toggle("is-active", button.dataset.view === viewName));
-  $$(".view").forEach((view) => view.classList.remove("is-active"));
-  const view = $(`#${viewName}View`);
-  view.classList.add("is-active");
-  $("#viewTitle").textContent = view.dataset.title;
+  setActiveView(viewName);
   render();
 }
 
