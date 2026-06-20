@@ -1311,6 +1311,17 @@ async function loadRemoteState(options = {}) {
     workspaceInvites = [];
   }
 
+  if (!options.skipRepair && canManageWorkspace()) {
+    const repairResult = await supabaseClient.rpc("repair_workspace_member_links", { target_workspace_id: currentWorkspace.id });
+    if (repairResult.error && !(repairResult.error.message || "").toLowerCase().includes("repair_workspace_member_links")) {
+      throw repairResult.error;
+    }
+    if (Number(repairResult.data || 0) > 0) {
+      await loadRemoteState({ skipRepair: true });
+      return;
+    }
+  }
+
   const memberByUserId = new Map((workspaceMembersResult.data || []).map((membership) => [membership.user_id, membership]));
   const emailByUserId = new Map((workspaceInvites || [])
     .filter((invite) => invite.accepted_by && invite.email)
@@ -2287,16 +2298,16 @@ async function addAttendance(personId, action, time = new Date().toISOString(), 
       showToast("Create or select a workspace first");
       return;
     }
-    const { error } = await supabaseClient.from("attendance_logs").insert({
-      workspace_id: currentWorkspace.id,
-      editor_id: personId,
-      action,
-      happened_at: time,
-      note: note.trim() || null,
-      created_by: currentUser.id
+    const { error } = await supabaseClient.rpc("save_attendance_log_rpc", {
+      target_editor_id: personId,
+      target_action: action,
+      target_happened_at: time,
+      target_note: note.trim() || null
     });
     if (error) {
-      showToast(error.message);
+      showToast(error.message?.includes("function save_attendance_log_rpc")
+        ? "Run member-access-repair-and-rpc.sql in Supabase, then try again."
+        : error.message);
       return;
     }
     await refreshRemote(`${actionLabel(action)} saved`);
