@@ -12,6 +12,7 @@ const WORKSPACE_KEY = "avantex-current-workspace";
 const INVITE_KEY = "avantex-pending-invite";
 const THEME_KEY = "avantex-theme";
 const VIEW_KEY = "avantex-current-view";
+const CHAT_KEY = "avantex-selected-chat";
 
 if (!IS_LOCAL_PREVIEW && window.location.hostname !== CANONICAL_HOST) {
   window.location.replace(`${APP_REDIRECT_URL}${window.location.pathname}${window.location.search}${window.location.hash}`);
@@ -780,6 +781,24 @@ function statusFor(personId, date = todayKey()) {
   if (latest.action === "in" || latest.action === "break_end") return { label: "In Office", className: "in", entries };
   if (latest.action === "break_start") return { label: "On Break", className: "break", entries };
   return { label: "Out", className: "out", entries };
+}
+
+function validateAttendanceAction(personId, action, time = new Date().toISOString()) {
+  const date = dateFromTimestamp(time);
+  const status = statusFor(personId, date);
+  const allowed = {
+    out: ["in"],
+    in: ["break_start", "out"],
+    break: ["break_end", "out"]
+  }[status.className] || ["in"];
+
+  if (allowed.includes(action)) return "";
+
+  if (action === "in") return `${getPerson(personId)?.name || "Member"} is already marked in. Mark Out first if this is a new shift.`;
+  if (action === "break_start") return "Break can only start after the member is In Office.";
+  if (action === "break_end") return "Break can only end after Break Start.";
+  if (action === "out") return "Out can only be marked after In or Break.";
+  return "Attendance action is not valid for the current status.";
 }
 
 function workFor(personId, date = todayKey()) {
@@ -1993,8 +2012,10 @@ function senderName(message) {
 function renderChat() {
   if (!$("#chatThreadList")) return;
   const threads = visibleChatThreads();
+  if (!selectedChatThreadId) selectedChatThreadId = localStorage.getItem(CHAT_KEY) || "";
   if (!selectedChatThreadId && threads.length) selectedChatThreadId = threads[0].id;
   if (selectedChatThreadId && !threads.some((thread) => thread.id === selectedChatThreadId)) selectedChatThreadId = threads[0]?.id || "";
+  if (selectedChatThreadId) localStorage.setItem(CHAT_KEY, selectedChatThreadId);
 
   $("#chatThreadList").innerHTML = threads.length
     ? threads.map((thread) => `
@@ -2149,6 +2170,7 @@ async function sendChatMessage(body) {
     if (thread.virtual && thread.id.startsWith("direct:")) {
       thread = await ensureDirectChat(thread.id.split(":")[1]);
       selectedChatThreadId = thread.id;
+      localStorage.setItem(CHAT_KEY, selectedChatThreadId);
       if (!state.chatThreads.some((item) => item.id === thread.id)) state.chatThreads.unshift(thread);
     }
     const own = ownTeamMember();
@@ -2264,6 +2286,17 @@ function applyReportFilters() {
   showToast("Report filter applied");
 }
 
+function resetReportFilters() {
+  $("#reportPreset").value = "today";
+  $("#reportStartDate").disabled = true;
+  $("#reportEndDate").disabled = true;
+  $("#reportStartDate").value = todayKey();
+  $("#reportEndDate").value = todayKey();
+  $("#reportPerson").value = canManageWorkspace() ? "all" : ($("#reportPerson option")?.value || "");
+  renderReports();
+  showToast("Report filters reset");
+}
+
 function reportRow(person, date) {
   const summary = attendanceSummary(person.id, date);
   const status = statusFor(person.id, date);
@@ -2306,6 +2339,11 @@ async function addAttendance(personId, action, time = new Date().toISOString(), 
   }
   if (!canUsePerson(personId)) {
     showToast(isRemovedFromWorkspace() ? "Admin removed you from this workspace. Attendance is disabled." : "You can only update your own attendance");
+    return;
+  }
+  const validationMessage = validateAttendanceAction(personId, action, time);
+  if (validationMessage) {
+    showToast(validationMessage);
     return;
   }
   if (usingSupabase) {
@@ -2809,17 +2847,32 @@ async function updateAssignmentStatus(assignmentId, status) {
   if (!admin && assignment.personId !== own?.id) return showToast("You can only update your own assignments");
   const allowed = admin ? ["approved", "revision", "assigned", "in_progress", "submitted"] : ["in_progress", "submitted", "help"];
   if (!allowed.includes(status)) return showToast("Status not allowed");
+  if (assignment.status === status) return showToast(`Assignment is already ${assignmentStatusText(status)}`);
+  if (!usingSupabase) {
+    assignment.status = status;
+    assignment.updatedAt = new Date().toISOString();
+    saveState("Assignment updated");
+    return;
+  }
   const { error } = await supabaseClient
     .from("work_assignments")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", assignmentId);
   if (error) return showToast(error.message);
+  assignment.status = status;
+  assignment.updatedAt = new Date().toISOString();
+  render();
   await refreshRemote("Assignment updated");
 }
 
 async function deleteAssignment(assignmentId) {
   if (!canManageWorkspace()) return;
   if (!confirm("Delete this assignment?")) return;
+  if (!usingSupabase) {
+    state.assignments = state.assignments.filter((item) => item.id !== assignmentId);
+    saveState("Assignment deleted");
+    return;
+  }
   const { error } = await supabaseClient.from("work_assignments").delete().eq("id", assignmentId);
   if (error) return showToast(error.message);
   await refreshRemote("Assignment deleted");
@@ -3052,6 +3105,7 @@ function setupEvents() {
     const chatThreadButton = event.target.closest("[data-chat-thread]");
     if (chatThreadButton) {
       selectedChatThreadId = chatThreadButton.dataset.chatThread;
+      localStorage.setItem(CHAT_KEY, selectedChatThreadId);
       renderChat();
     }
 
@@ -3220,6 +3274,7 @@ function setupEvents() {
   $("#workDate").addEventListener("change", updateDateHints);
   $("#reportPerson").addEventListener("change", renderReports);
   $("#applyReportFilterBtn").addEventListener("click", applyReportFilters);
+  $("#resetReportFilterBtn")?.addEventListener("click", resetReportFilters);
   $("#exportCsvBtn").addEventListener("click", exportReportCsv);
   $("#refreshBtn").addEventListener("click", () => refreshData());
   $("#workspaceSelect").addEventListener("change", (event) => switchWorkspace(event.target.value));
