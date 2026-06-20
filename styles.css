@@ -3313,7 +3313,7 @@ textarea:focus-visible {
 }
 
 #teamView .split-layout {
-  grid-template-columns: minmax(360px, 0.9fr) minmax(0, 1.35fr);
+  grid-template-columns: minmax(420px, 0.85fr) minmax(0, 1.4fr);
   align-items: start;
 }
 
@@ -3327,12 +3327,26 @@ textarea:focus-visible {
 }
 
 .invite-form {
-  grid-template-columns: minmax(0, 1fr) 150px auto;
+  grid-template-columns: minmax(0, 1fr) 180px;
   gap: 12px;
   padding: 14px;
   border: 1px solid rgba(216, 224, 234, 0.85);
   border-radius: 16px;
   background: rgba(248, 250, 252, 0.72);
+}
+
+.invite-form label:first-child {
+  grid-column: 1 / -1;
+}
+
+.invite-form .primary-button {
+  min-height: 48px;
+  align-self: end;
+  white-space: nowrap;
+}
+
+.invite-custom-role {
+  grid-column: 1 / -1;
 }
 
 :root[data-theme="dark"] .invite-form {
@@ -3363,10 +3377,10 @@ textarea:focus-visible {
 
 .team-card {
   display: grid;
-  grid-template-columns: minmax(260px, 1.2fr) minmax(180px, 0.7fr) auto;
+  grid-template-columns: minmax(300px, 1.25fr) minmax(160px, 0.6fr) 190px;
   align-items: center;
   gap: 16px;
-  min-height: 94px;
+  min-height: 116px;
   padding: 16px;
 }
 
@@ -3427,23 +3441,48 @@ textarea:focus-visible {
 }
 
 .team-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: stretch;
   gap: 8px;
 }
 
 .team-actions .ghost-button {
   min-height: 40px;
   padding: 0 13px;
+  width: 100%;
 }
 
 .team-role-control {
-  min-width: 148px;
+  min-width: 0;
 }
 
 .team-role-control span {
   display: none;
+}
+
+.team-role-control select {
+  min-height: 40px;
+  border-radius: 12px;
+}
+
+@media (min-width: 901px) and (max-width: 1320px) {
+  #teamView .split-layout {
+    grid-template-columns: 1fr;
+  }
+
+  #teamView .panel:first-child {
+    position: static;
+  }
+
+  .invite-form {
+    grid-template-columns: minmax(0, 1fr) 180px auto;
+  }
+
+  .invite-form label:first-child {
+    grid-column: auto;
+  }
 }
 
 @media (max-width: 1180px) {
