@@ -1,4135 +1,757 @@
-:root {
-  --ink: #18212f;
-  --muted: #677284;
-  --line: #dce3ea;
-  --bg: #f5f7f9;
-  --panel: #ffffff;
-  --soft-panel: #fbfcfd;
-  --blue: #1d5fd1;
-  --green: #11845b;
-  --amber: #b56b00;
-  --red: #c43432;
-  --violet: #6952b8;
-  --shadow: 0 12px 30px rgba(24, 33, 47, 0.08);
-}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0f1a24">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Avantex Flow">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Attendance, assignments, and daily work tracking for teams.">
+    <title>Avantex Flow</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/avantex-flow-app.png" type="image/png">
+    <link rel="apple-touch-icon" href="icons/avantex-flow-app.png">
+    <style>
+      body.is-booting .main {
+        visibility: hidden;
+      }
+      body.is-booting::before {
+        content: "Avantex Flow";
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        background: #f4f7fb;
+        color: #071526;
+        font: 800 24px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      body.is-booting [data-view="attendance"],
+      body.is-booting [data-view="work"],
+      body.is-booting [data-view="team"],
+      body.is-booting [data-view="assignments"],
+      body.is-booting [data-view="chat"],
+      body.is-booting [data-view="admin"],
+      [data-view="attendance"][hidden],
+      [data-view="work"][hidden],
+      [data-view="team"][hidden],
+      [data-view="assignments"][hidden],
+      [data-view="chat"][hidden],
+      [data-view="admin"][hidden] {
+        display: none !important;
+      }
+    </style>
+    <link rel="stylesheet" href="styles.css?v=20260621-workflow-upgrade">
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  </head>
+  <body class="is-booting">
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <div class="brand">
+          <img class="brand-logo" src="icons/avantex-flow-app.png" alt="" aria-hidden="true">
+          <div>
+            <p>FOCUS. ORGANIZE. FLOW.</p>
+            <h1>Avantex Flow</h1>
+          </div>
+        </div>
+
+        <div class="workspace-switcher" id="workspaceSwitcher">
+          <button class="workspace-trigger" id="workspaceMenuBtn" type="button" aria-expanded="false" aria-controls="workspaceMenu">
+            <span class="workspace-avatar" id="workspaceAvatar">A</span>
+            <span class="workspace-trigger-copy">
+              <strong id="workspaceTriggerName">Workspace</strong>
+              <small id="workspaceTriggerRole">Free Workspace</small>
+            </span>
+            <span class="workspace-caret" aria-hidden="true">⌄</span>
+          </button>
+          <div class="workspace-menu" id="workspaceMenu" hidden>
+            <div class="workspace-menu-head">
+              <span class="workspace-avatar large" id="workspaceMenuAvatar">A</span>
+              <div>
+                <strong id="workspaceMenuName">Workspace</strong>
+                <small id="workspaceMenuMeta">Free Workspace</small>
+              </div>
+            </div>
+            <div class="workspace-menu-actions">
+              <button type="button" data-workspace-action="settings">Settings</button>
+              <button type="button" data-workspace-action="people">People</button>
+            </div>
+            <div class="workspace-menu-list" id="workspaceMenuList"></div>
+            <button class="workspace-create-button" type="button" data-workspace-action="create">+ Create Workspace</button>
+          </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="Sections">
+          <button class="nav-tab is-active" data-view="dashboard" type="button">
+            <span>Dashboard</span>
+          </button>
+          <button class="nav-tab" data-view="attendance" type="button" hidden>
+            <span>Attendance</span>
+          </button>
+          <button class="nav-tab" data-view="work" type="button" hidden>
+            <span>Daily Work Tracker</span>
+          </button>
+          <button class="nav-tab" data-view="team" type="button" hidden>
+            <span>Team Members</span>
+          </button>
+          <button class="nav-tab" data-view="assignments" type="button" hidden>
+            <span>Assignments</span>
+          </button>
+          <button class="nav-tab" data-view="chat" type="button" hidden>
+            <span>Chat</span>
+          </button>
+          <button class="nav-tab" data-view="reports" type="button">
+            <span>Reports</span>
+          </button>
+          <button class="nav-tab admin-only" data-view="admin" type="button" hidden>
+            <span>Admin Controls</span>
+          </button>
+        </nav>
+
+        <div class="side-summary">
+          <span>Today</span>
+          <strong id="sideToday">Today</strong>
+          <small id="sideDate"></small>
+          <small id="syncStatus">Not synced</small>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Team attendance and work management</p>
+            <h2 id="viewTitle">Dashboard</h2>
+          </div>
+          <div class="topbar-actions">
+            <select class="workspace-select" id="workspaceSelect" aria-label="Workspace"></select>
+            <span class="session-pill" id="sessionPill">Offline</span>
+            <button class="icon-button" id="refreshBtn" type="button" title="Refresh data" aria-label="Refresh data">&#10227;</button>
+            <div class="profile-menu-wrap" id="profileMenuWrap">
+              <button class="profile-trigger" id="profileMenuBtn" type="button" aria-label="Open profile menu" aria-expanded="false">
+                <span class="profile-avatar" id="profileAvatar">A</span>
+                <span class="profile-online-dot"></span>
+              </button>
+              <div class="profile-menu" id="profileMenu" hidden>
+                <div class="profile-menu-head">
+                  <span class="profile-avatar large" id="profileMenuAvatar">A</span>
+                  <div>
+                    <strong id="profileMenuName">Account</strong>
+                    <small id="profileMenuEmail">Offline</small>
+                    <span id="profileMenuStatus">Online</span>
+                  </div>
+                </div>
+                <button class="profile-menu-item" type="button" data-profile-action="dashboard">My Dashboard</button>
+                <button class="profile-menu-item" type="button" data-profile-action="people">View People</button>
+                <button class="profile-menu-item" type="button" data-profile-action="settings">Workspace Settings</button>
+                <button class="profile-menu-item" type="button" data-profile-action="refresh">Refresh</button>
+                <button class="profile-menu-item" type="button" data-profile-action="theme">Switch Theme</button>
+                <button class="profile-menu-item danger-text" id="signOutBtn" type="button" data-profile-action="logout">Log out</button>
+              </div>
+            </div>
+            <label class="icon-button file-button" title="Import backup" aria-label="Import backup">
+              UP
+              <input id="importJsonInput" type="file" accept="application/json">
+            </label>
+            <button class="icon-button danger" id="clearDataBtn" type="button" title="Clear all data" aria-label="Clear all data">X</button>
+          </div>
+        </header>
+
+        <section class="panel workspace-setup" id="workspaceSetup">
+          <div class="panel-head">
+            <div>
+              <span class="section-kicker">Workspace</span>
+              <h3>Create Your Team Space</h3>
+            </div>
+          </div>
+          <form class="form-stack compact-form" id="workspaceForm">
+            <label>
+              Workspace Name
+              <input id="workspaceName" type="text" placeholder="Avantex Flow" required>
+            </label>
+            <button class="primary-button" type="submit">Create Workspace</button>
+          </form>
+        </section>
+
+        <section class="view is-active" id="dashboardView" data-title="Dashboard">
+          <div class="metric-grid">
+            <article class="metric">
+              <span>Current Day</span>
+              <strong id="metricDay">-</strong>
+              <small id="metricDate">-</small>
+            </article>
+            <article class="metric admin-metric">
+              <span>Present Today</span>
+              <strong id="metricPresent">0</strong>
+            </article>
+            <article class="metric admin-metric">
+              <span>Offline Today</span>
+              <strong id="metricOffline">0</strong>
+            </article>
+            <article class="metric admin-metric">
+              <span>Total Members</span>
+              <strong id="metricTotalMembers">0</strong>
+            </article>
+            <article class="metric admin-metric">
+              <span>On Break</span>
+              <strong id="metricBreak">0</strong>
+            </article>
+            <article class="metric admin-metric">
+              <span>Work Items Today</span>
+              <strong id="metricVideos">0</strong>
+            </article>
+            <article class="metric">
+              <span>Hours Logged</span>
+              <strong id="metricHours">0h</strong>
+            </article>
+          </div>
+          <div class="access-notice" id="removedNotice" hidden></div>
+
+          <div class="content-grid">
+            <section class="panel wide">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Live</span>
+                  <h3>Team Status</h3>
+                </div>
+                <button class="small-button editor-only-action" data-view-jump="attendance" type="button">Open</button>
+              </div>
+              <div class="status-list" id="dashboardStatus"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Production</span>
+                  <h3>Today's Work</h3>
+                </div>
+                <button class="small-button editor-only-action" data-view-jump="work" type="button">Add</button>
+              </div>
+              <div class="compact-list" id="dashboardWork"></div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Assignments</span>
+                  <h3 id="dashboardAssignmentsTitle">Assigned Work</h3>
+                </div>
+                <button class="small-button" data-view-jump="assignments" type="button">Open</button>
+              </div>
+              <div class="compact-list" id="dashboardAssignments"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="attendanceView" data-title="Attendance">
+          <div class="split-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Punch</span>
+                  <h3>Attendance Actions</h3>
+                </div>
+              </div>
+              <form class="form-stack" id="attendanceForm">
+                <label>
+                  Team Member
+                  <select id="attendancePerson" required></select>
+                </label>
+                <label>
+                  Action
+                  <select id="attendanceAction" required>
+                    <option value="in">In</option>
+                    <option value="break_start">Break Start</option>
+                    <option value="break_end">Break End</option>
+                    <option value="out">Out</option>
+                  </select>
+                </label>
+                <label>
+                  Time
+                  <input id="attendanceTime" type="datetime-local" required>
+                  <small class="field-hint" id="attendanceSelectedDay">-</small>
+                </label>
+                <label>
+                  Note
+                  <input id="attendanceNote" type="text" placeholder="Late, meeting, personal break">
+                </label>
+                <button class="primary-button" type="submit">Save Attendance</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker" id="attendanceDayLabel">Today</span>
+                  <h3>Attendance Log</h3>
+                </div>
+              </div>
+              <div class="timeline" id="attendanceLog"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="workView" data-title="Daily Work Tracker">
+          <div class="split-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Update</span>
+                  <h3>Daily Work Entry</h3>
+                </div>
+              </div>
+              <form class="form-stack" id="workForm">
+                <label>
+                  Team Member
+                  <select id="workPerson" required></select>
+                </label>
+                <label>
+                  Date
+                  <input id="workDate" type="date" required>
+                  <small class="field-hint" id="workSelectedDay">-</small>
+                </label>
+                <div class="input-row">
+                  <label>
+                    Completed Tasks
+                    <input id="workLongVideos" type="number" min="0" value="0">
+                  </label>
+                  <label>
+                    Follow-ups
+                    <input id="workShorts" type="number" min="0" value="0">
+                  </label>
+                </div>
+                <div class="input-row">
+                  <label>
+                    Reviews
+                    <input id="workThumbnails" type="number" min="0" value="0">
+                  </label>
+                  <label>
+                    Other Tasks
+                    <input id="workOtherCount" type="number" min="0" value="0">
+                  </label>
+                </div>
+                <label>
+                  Task Details
+                  <textarea id="workDetails" rows="4" placeholder="Tasks completed, client updates, pending work, links"></textarea>
+                </label>
+                <label>
+                  Status
+                  <select id="workStatus">
+                    <option value="completed">Completed</option>
+                    <option value="in_progress">In progress</option>
+                    <option value="revision">Revision</option>
+                    <option value="blocked">Blocked</option>
+                  </select>
+                </label>
+                <button class="primary-button" type="submit">Save Work Update</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker" id="workDayLabel">Today</span>
+                  <h3>Production Log</h3>
+                </div>
+              </div>
+              <div class="work-list" id="workLog"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="assignmentsView" data-title="Assignments">
+          <div class="split-layout">
+            <section class="panel assignment-admin-panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Assign</span>
+                  <h3>Assign Work</h3>
+                </div>
+              </div>
+              <form class="form-stack" id="assignmentForm">
+                <label>
+                  Team Member
+                  <select id="assignmentPerson"></select>
+                </label>
+                <label>
+                  Task Title
+                  <input id="assignmentTitle" type="text" placeholder="Prepare weekly report" required>
+                </label>
+                <label>
+                  Work Type
+                  <select id="assignmentType">
+                    <option value="Google Sheet">Google Sheet</option>
+                    <option value="Google Doc">Google Doc</option>
+                    <option value="Video Link">Video Link</option>
+                    <option value="Folder Link">Folder Link</option>
+                    <option value="Design Link">Design Link</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </label>
+                <label>
+                  Work Link
+                  <input id="assignmentUrl" type="url" placeholder="https://docs.google.com/...">
+                </label>
+                <label>
+                  Priority
+                  <select id="assignmentPriority">
+                    <option value="normal">Normal</option>
+                    <option value="low">Low</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </label>
+                <label>
+                  Due Date
+                  <input id="assignmentDueDate" type="date">
+                </label>
+                <label>
+                  Instructions
+                  <textarea id="assignmentNotes" rows="3" placeholder="Add clear instructions for this work"></textarea>
+                </label>
+                <button class="primary-button" type="submit">Assign Work</button>
+              </form>
+            </section>
+
+            <section class="panel wide">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker" id="assignmentListKicker">Work</span>
+                  <h3 id="assignmentListTitle">Assigned Work</h3>
+                </div>
+              </div>
+              <div class="assignment-list" id="assignmentList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="chatView" data-title="Chat">
+          <div class="chat-layout">
+            <section class="panel chat-sidebar-panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Messages</span>
+                  <h3>Workspace Chat</h3>
+                </div>
+              </div>
+              <div class="chat-create-panel admin-chat-tools">
+                <button class="primary-button" id="createGroupBtn" type="button">Create Group</button>
+              </div>
+              <div class="chat-thread-list" id="chatThreadList"></div>
+            </section>
+
+            <section class="panel chat-main-panel">
+              <div class="chat-head">
+                <div>
+                  <span class="section-kicker" id="chatThreadType">Chat</span>
+                  <h3 id="chatThreadTitle">Select a chat</h3>
+                  <small id="chatThreadMeta">Choose a member or group to start messaging.</small>
+                </div>
+                <button class="ghost-button admin-chat-tools" id="manageGroupBtn" type="button" hidden>Manage Group</button>
+              </div>
+              <div class="chat-messages" id="chatMessages"></div>
+              <form class="chat-compose" id="chatForm">
+                <input id="chatMessageInput" type="text" placeholder="Write a message..." autocomplete="off">
+                <button class="primary-button" type="submit">Send</button>
+              </form>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="teamView" data-title="Team Members">
+          <div class="split-layout">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Workspace</span>
+                  <h3 id="workspaceNameLabel">Workspace</h3>
+                </div>
+                <span class="session-pill" id="workspaceRoleLabel">role</span>
+              </div>
+              <form class="form-stack invite-form" id="inviteForm">
+                <label>
+                  Member Email
+                  <input id="inviteEmail" type="email" placeholder="editor@example.com" required>
+                </label>
+                <label>
+                  Role
+                  <select id="inviteRole">
+                    <option value="admin">Admin</option>
+                    <option value="member" selected>Member</option>
+                    <option value="video-editor">Video Editor</option>
+                    <option value="thumbnail-designer">Thumbnail Designer</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+                <label class="invite-custom-role" id="inviteCustomRoleWrap" hidden>
+                  Custom Role Tag
+                  <input id="inviteCustomRole" type="text" placeholder="Operations Lead">
+                </label>
+                <button class="primary-button" type="submit">Create Email Invite</button>
+              </form>
+              <div class="invite-list" id="inviteList"></div>
+            </section>
+
+            <section class="panel manual-member-panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Manual</span>
+                  <h3>Add Team Member</h3>
+                </div>
+              </div>
+              <form class="form-stack" id="teamForm">
+                <label>
+                  Team Member Name
+                  <input id="teamName" type="text" placeholder="New team member name" required>
+                </label>
+                <label>
+                  Shift
+                  <input id="teamShift" type="text" placeholder="10:00 AM - 7:00 PM">
+                </label>
+                <button class="primary-button" type="submit">Add Member</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Roster</span>
+                  <h3>Team Members</h3>
+                </div>
+              </div>
+              <div class="team-list" id="teamList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="reportsView" data-title="Reports">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="section-kicker">Filter</span>
+                <h3>Daily Report</h3>
+              </div>
+              <button class="small-button" id="exportCsvBtn" type="button">CSV</button>
+            </div>
+
+            <div class="report-filters">
+              <label>
+                Period
+                <select id="reportPreset">
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                  <option value="month">This Month</option>
+                  <option value="year">This Year</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </label>
+              <label>
+                Start Date
+                <input id="reportStartDate" type="date">
+              </label>
+              <label>
+                End Date
+                <input id="reportEndDate" type="date">
+              </label>
+              <label class="legacy-report-date">
+                Date
+                <input id="reportDate" type="date">
+              </label>
+              <label>
+                Team Member
+                <select id="reportPerson"></select>
+              </label>
+              <button class="primary-button filter-apply-button" id="applyReportFilterBtn" type="button">Apply Filter</button>
+              <button class="ghost-button filter-reset-button" id="resetReportFilterBtn" type="button">Reset</button>
+            </div>
+            <div class="report-day" id="reportDayLabel"></div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Team Member</th>
+                    <th>Role</th>
+                    <th>Day</th>
+                    <th>Date</th>
+                    <th>In</th>
+                    <th>Break</th>
+                    <th>Out</th>
+                    <th>Hours</th>
+                    <th>Tasks</th>
+                    <th>Follow-ups</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="reportRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="adminView" data-title="Admin Controls">
+          <div class="content-grid">
+            <section class="panel wide">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Records</span>
+                  <h3>Edit Or Delete Entries</h3>
+                </div>
+              </div>
+              <div class="report-filters">
+                <label>
+                  Date
+                  <input id="adminDate" type="date">
+                </label>
+                <label>
+                  Team Member
+                  <select id="adminPerson"></select>
+                </label>
+              </div>
+              <div class="admin-records">
+                <div>
+                  <h4>Attendance Entries</h4>
+                  <div class="admin-list" id="adminAttendanceList"></div>
+                </div>
+                <div>
+                  <h4>Daily Work Entries</h4>
+                  <div class="admin-list" id="adminWorkList"></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Danger</span>
+                  <h3>Bulk Delete</h3>
+                </div>
+              </div>
+              <form class="form-stack" id="bulkDeleteForm">
+                <label>
+                  Team Member
+                  <select id="bulkEditor"></select>
+                </label>
+                <div class="input-row">
+                  <label>
+                    From
+                    <input id="bulkStartDate" type="date" required>
+                  </label>
+                  <label>
+                    To
+                    <input id="bulkEndDate" type="date" required>
+                  </label>
+                </div>
+                <label>
+                  Confirm Text
+                  <input id="bulkConfirm" type="text" placeholder="DELETE AVANTEX RECORDS">
+                </label>
+                <div class="stacked-actions">
+                  <button class="ghost-button danger-text" id="deleteAttendanceRangeBtn" type="button">Delete Attendance</button>
+                  <button class="ghost-button danger-text" id="deleteWorkRangeBtn" type="button">Delete Daily Work</button>
+                  <button class="ghost-button danger-text" id="deleteAllRangeBtn" type="button">Delete Both</button>
+                </div>
+              </form>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="auth-gate" id="authGate">
+      <section class="auth-landing">
+        <header class="auth-nav">
+          <div class="brand auth-brand">
+            <img class="brand-logo" src="icons/avantex-flow-app.png" alt="" aria-hidden="true">
+            <div>
+              <p>FOCUS. ORGANIZE. FLOW.</p>
+              <h1>Avantex Flow</h1>
+            </div>
+          </div>
+          <div class="auth-nav-actions">
+            <button class="auth-link-button" type="button" data-auth-mode="login">Login</button>
+            <button class="auth-dark-button" type="button" data-auth-mode="signup">Sign Up</button>
+          </div>
+        </header>
+
+        <div class="auth-hero">
+          <button class="auth-back" id="authBackBtn" type="button">Back to overview</button>
+          <div class="auth-page-copy">
+            <div class="product-pill">Secure workspace access</div>
+            <h2 id="authPageHeadline">Create your team account.</h2>
+            <p>Use your company email to join an existing workspace invitation or create a new workspace for your own team.</p>
+          </div>
+          <div class="auth-copy">
+            <div class="product-pill">Workforce management for modern teams</div>
+            <h2>Run attendance, tasks, and team updates from one workspace.</h2>
+            <p>Built for software houses, agencies, and operations teams that need clear check-ins, daily output, roles, and reports without messy spreadsheets.</p>
+            <ul class="auth-points">
+              <li><span>&#10003;</span> Invite staff, managers, and admins by email</li>
+              <li><span>&#10003;</span> Track attendance, breaks, output, and history</li>
+              <li><span>&#10003;</span> Keep every company workspace private and secure</li>
+            </ul>
+            <div class="hero-actions">
+              <button class="hero-cta" id="getStartedBtn" type="button">Start your workspace</button>
+              <small>Create an account, then invite your team.</small>
+            </div>
+          </div>
+
+          <div class="auth-preview" aria-hidden="true">
+            <div class="preview-shell">
+              <div class="preview-sidebar">
+                <strong>Avantex Flow</strong>
+                <span>Dashboard</span>
+                <span>Attendance</span>
+                <span>Daily Updates</span>
+                <span>Reports</span>
+              </div>
+              <div class="preview-main">
+                <div class="preview-top">
+                  <span>Operations Team</span>
+                  <span>Today</span>
+                </div>
+                <div class="preview-row done"><strong>Olivia Parker</strong><span>In Office</span><small>8 tasks</small></div>
+                <div class="preview-row progress"><strong>Daniel Brooks</strong><span>On Break</span><small>5 updates</small></div>
+                <div class="preview-row review"><strong>Emma Wilson</strong><span>Review</span><small>3 reports</small></div>
+                <div class="preview-task"><span>Daily summary</span><strong>16 updates submitted</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <section class="auth-panel">
+            <div class="auth-tabs">
+              <button class="is-active" type="button" data-auth-mode="signup">Sign Up</button>
+              <button type="button" data-auth-mode="login">Login</button>
+            </div>
+            <h3 id="authModeTitle">Create your account</h3>
+            <p id="authModeCopy">Start with your email. After login, create a workspace or accept an invite.</p>
+            <form class="form-stack" id="loginForm">
+              <label id="authNameWrap">
+                Full Name
+                <input id="signupName" type="text" autocomplete="name" placeholder="Your name">
+              </label>
+              <label>
+                Email
+                <input id="loginEmail" type="email" autocomplete="email" required>
+              </label>
+              <label>
+                Password
+                <input id="loginPassword" type="password" autocomplete="current-password" required>
+              </label>
+              <button class="primary-button" id="authSubmitBtn" type="submit">Create Account</button>
+              <button class="ghost-button" id="forgotPasswordBtn" type="button">Forgot / Set Password</button>
+              <button class="ghost-button" id="resendConfirmBtn" type="button">Resend Confirmation Email</button>
+              <p class="auth-switch" id="authSwitchText">Already have an account? <button type="button" data-auth-mode="login">Login</button></p>
+              <p class="auth-message" id="authMessage">Use the same email address if you received an invite.</p>
+            </form>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js?v=20260621-workflow-upgrade"></script>
+  </body>
+</html>
 
-:root[data-theme="dark"] {
-  --ink: #eef4fb;
-  --muted: #9ca9ba;
-  --line: #263342;
-  --bg: #0d1218;
-  --panel: #141b24;
-  --soft-panel: #111820;
-  --blue: #6da2ff;
-  --green: #3dd39a;
-  --amber: #f0b84e;
-  --red: #ff746f;
-  --violet: #a99cff;
-  --shadow: 0 18px 38px rgba(0, 0, 0, 0.28);
-  color-scheme: dark;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-[hidden] {
-  display: none !important;
-}
-
-html {
-  min-height: 100%;
-  color-scheme: light;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-body {
-  min-height: 100vh;
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-.app-shell {
-  display: grid;
-  grid-template-columns: 278px minmax(0, 1fr);
-  min-height: 100vh;
-}
-
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  min-height: 100vh;
-  padding: 24px 18px;
-  background: #101820;
-  color: #f7fbff;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 8px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
-}
-
-.brand-mark {
-  display: grid;
-  grid-template-columns: repeat(2, 14px);
-  grid-template-rows: repeat(2, 14px);
-  gap: 4px;
-  width: 40px;
-  height: 40px;
-  padding: 4px;
-  border-radius: 8px;
-  background: #f7fbff;
-}
-
-.brand-mark span {
-  border-radius: 3px;
-  background: var(--blue);
-}
-
-.brand-mark span:nth-child(2) {
-  background: var(--green);
-}
-
-.brand-mark span:nth-child(3) {
-  grid-column: span 2;
-  background: #f2b544;
-}
-
-.brand-logo {
-  display: block;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 44px;
-  border-radius: 12px;
-  object-fit: cover;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
-}
-
-.brand p,
-.brand h1,
-.topbar p,
-.topbar h2,
-.panel h3 {
-  margin: 0;
-}
-
-.brand p {
-  color: #a8b6c4;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0;
-}
-
-.brand h1 {
-  font-size: 20px;
-  line-height: 1.1;
-}
-
-.workspace-switcher {
-  position: relative;
-}
-
-.workspace-trigger {
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 54px;
-  padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.07);
-  color: #ffffff;
-  text-align: left;
-}
-
-.workspace-trigger:hover,
-.workspace-trigger[aria-expanded="true"] {
-  background: #20303f;
-}
-
-.workspace-avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 8px;
-  background: #16b8a6;
-  color: #ffffff;
-  font-size: 17px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.workspace-avatar.large {
-  width: 44px;
-  height: 44px;
-  font-size: 20px;
-}
-
-.workspace-trigger-copy {
-  min-width: 0;
-}
-
-.workspace-trigger-copy strong,
-.workspace-menu-head strong {
-  display: block;
-  overflow: hidden;
-  color: #ffffff;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workspace-trigger-copy small,
-.workspace-menu-head small {
-  display: block;
-  margin-top: 2px;
-  color: #a8b6c4;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.workspace-caret {
-  color: #a8b6c4;
-  font-size: 18px;
-}
-
-.workspace-menu {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 8px);
-  left: 0;
-  width: min(320px, calc(100vw - 32px));
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  background: #111820;
-  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.32);
-}
-
-.workspace-menu-head {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  padding: 4px 4px 12px;
-}
-
-.workspace-menu-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.workspace-menu-actions button,
-.workspace-create-button,
-.workspace-option {
-  min-height: 38px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #f7fbff;
-  font-weight: 900;
-}
-
-.workspace-menu-actions button:hover,
-.workspace-create-button:hover,
-.workspace-option:hover,
-.workspace-option-row.is-active {
-  background: #20303f;
-}
-
-.workspace-menu-list {
-  display: grid;
-  gap: 6px;
-  max-height: 190px;
-  overflow: auto;
-  padding: 8px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-}
-
-.workspace-menu-list .empty {
-  padding: 10px 8px;
-  color: #a8b6c4;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.workspace-option-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 34px;
-  align-items: center;
-  border-radius: 8px;
-  position: relative;
-}
-
-.workspace-option {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 8px;
-  text-align: left;
-}
-
-.workspace-more-button {
-  width: 30px;
-  height: 30px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: #d8e0e8;
-  font-size: 17px;
-  font-weight: 900;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.workspace-more-button:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.workspace-more-wrap {
-  position: relative;
-  display: grid;
-  place-items: center;
-}
-
-.workspace-row-menu {
-  position: absolute;
-  top: 34px;
-  right: 0;
-  z-index: 25;
-  display: grid;
-  min-width: 168px;
-  padding: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 8px;
-  background: #101922;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
-}
-
-.workspace-row-menu[hidden] {
-  display: none;
-}
-
-.workspace-row-menu button {
-  min-height: 34px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: #f4f7fb;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 850;
-  text-align: left;
-  padding: 0 10px;
-  cursor: pointer;
-}
-
-.workspace-row-menu button:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.workspace-row-menu button:last-child {
-  color: #ffb4ad;
-}
-
-.workspace-option .workspace-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  font-size: 13px;
-}
-
-.workspace-option span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workspace-create-button {
-  width: 100%;
-  margin-top: 12px;
-  background: transparent;
-}
-
-.nav-tabs {
-  display: grid;
-  gap: 8px;
-}
-
-.nav-tab {
-  display: flex;
-  align-items: center;
-  min-height: 46px;
-  padding: 6px 14px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #cad5df;
-  text-align: left;
-  font-weight: 800;
-}
-
-.nav-tab:hover,
-.nav-tab.is-active {
-  background: #20303f;
-  color: #ffffff;
-}
-
-body.is-booting [data-view="attendance"],
-body.is-booting [data-view="work"],
-body.is-booting [data-view="team"],
-body.is-booting [data-view="admin"] {
-  display: none;
-}
-
-.side-summary {
-  margin-top: auto;
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.side-summary span,
-.side-summary small {
-  display: block;
-  color: #a8b6c4;
-}
-
-.side-summary strong {
-  display: block;
-  margin: 6px 0;
-  font-size: 24px;
-}
-
-.main {
-  min-width: 0;
-  padding: 28px;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.eyebrow,
-.section-kicker {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.topbar h2 {
-  margin-top: 4px;
-  font-size: 30px;
-  line-height: 1.1;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.profile-menu-wrap {
-  position: relative;
-}
-
-.profile-trigger {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: 46px;
-  height: 42px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--ink);
-}
-
-.profile-trigger:hover,
-.profile-trigger[aria-expanded="true"] {
-  border-color: #b8c4d6;
-  background: #f6f8fb;
-}
-
-.profile-avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  background: #111827;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.profile-avatar.large {
-  width: 44px;
-  height: 44px;
-  font-size: 16px;
-}
-
-.profile-online-dot {
-  position: absolute;
-  right: 7px;
-  bottom: 6px;
-  width: 9px;
-  height: 9px;
-  border: 2px solid #ffffff;
-  border-radius: 999px;
-  background: #22c55e;
-}
-
-.profile-menu {
-  position: absolute;
-  z-index: 1000;
-  top: calc(100% + 8px);
-  right: 0;
-  width: min(310px, calc(100vw - 28px));
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: #151719;
-  color: #f8fafc;
-  box-shadow: 0 24px 55px rgba(15, 23, 42, 0.26);
-}
-
-.profile-menu-head {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  padding: 4px 4px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.profile-menu-head strong,
-.profile-menu-head small,
-.profile-menu-head span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-menu-head small {
-  margin-top: 2px;
-  color: #aab3c0;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.profile-menu-head span {
-  margin-top: 6px;
-  color: #22c55e;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.profile-menu-item {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-height: 38px;
-  margin-top: 6px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #e5e7eb;
-  font-size: 13px;
-  font-weight: 800;
-  text-align: left;
-}
-
-.profile-menu-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-:root[data-theme="dark"] .main,
-:root[data-theme="dark"] .panel,
-:root[data-theme="dark"] .metric,
-:root[data-theme="dark"] .person-row,
-:root[data-theme="dark"] .work-card,
-:root[data-theme="dark"] .team-card,
-:root[data-theme="dark"] .invite-row,
-:root[data-theme="dark"] .timeline-item,
-:root[data-theme="dark"] .admin-item,
-:root[data-theme="dark"] .session-pill,
-:root[data-theme="dark"] input,
-:root[data-theme="dark"] select,
-:root[data-theme="dark"] textarea,
-:root[data-theme="dark"] .icon-button,
-:root[data-theme="dark"] .small-button,
-:root[data-theme="dark"] .ghost-button,
-:root[data-theme="dark"] .table-wrap {
-  border-color: var(--line);
-  background: var(--panel);
-  color: var(--ink);
-}
-
-:root[data-theme="dark"] .person-row,
-:root[data-theme="dark"] .work-card,
-:root[data-theme="dark"] .team-card,
-:root[data-theme="dark"] .invite-row,
-:root[data-theme="dark"] .timeline-item,
-:root[data-theme="dark"] .admin-item,
-:root[data-theme="dark"] .empty {
-  background: var(--soft-panel);
-}
-
-.session-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 38px;
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.workspace-select {
-  display: none;
-  min-height: 42px;
-  max-width: 220px;
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.icon-button {
-  display: inline-grid;
-  place-items: center;
-  width: 46px;
-  height: 42px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.icon-button:hover {
-  border-color: #b9c5d1;
-}
-
-.icon-button.danger {
-  color: var(--red);
-}
-
-.danger-text {
-  color: var(--red);
-}
-
-.file-button input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  opacity: 0;
-}
-
-.view {
-  display: none;
-}
-
-.view.is-active {
-  display: block;
-}
-
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.metric,
-.panel {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
-}
-
-.metric {
-  min-width: 0;
-  padding: 18px;
-}
-
-.metric span {
-  color: var(--muted);
-  font-weight: 700;
-}
-
-.metric strong {
-  display: block;
-  margin-top: 10px;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  font-size: 28px;
-  line-height: 1.05;
-}
-
-.metric small {
-  display: block;
-  margin-top: 8px;
-  color: var(--muted);
-  font-weight: 800;
-}
-
-.content-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
-  gap: 18px;
-}
-
-.split-layout {
-  display: grid;
-  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
-
-#teamView .split-layout {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.panel {
-  min-width: 0;
-  padding: 18px;
-}
-
-.workspace-setup {
-  display: none;
-  margin-bottom: 24px;
-}
-
-.compact-form {
-  max-width: 460px;
-}
-
-.panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.panel h3 {
-  margin-top: 2px;
-  font-size: 19px;
-}
-
-.small-button,
-.primary-button,
-.ghost-button {
-  min-height: 38px;
-  border-radius: 8px;
-  font-weight: 800;
-}
-
-.small-button,
-.ghost-button {
-  border: 1px solid var(--line);
-  background: #ffffff;
-  color: var(--ink);
-  padding: 0 13px;
-}
-
-.primary-button {
-  border: 0;
-  background: var(--blue);
-  color: #ffffff;
-  padding: 0 16px;
-}
-
-.primary-button:hover {
-  background: #174fae;
-}
-
-.form-stack {
-  display: grid;
-  gap: 13px;
-}
-
-.invite-form {
-  grid-template-columns: minmax(0, 1fr) 132px auto;
-  align-items: end;
-}
-
-label {
-  display: grid;
-  gap: 7px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.field-hint,
-.report-day {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.report-day {
-  margin: -4px 0 14px;
-}
-
-input,
-select,
-textarea {
-  width: 100%;
-  min-height: 42px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--ink);
-  padding: 10px 12px;
-  outline: none;
-}
-
-textarea {
-  resize: vertical;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(29, 95, 209, 0.14);
-}
-
-.input-row,
-.report-filters {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.report-filters {
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  align-items: end;
-  margin-bottom: 16px;
-}
-
-.filter-apply-button {
-  align-self: end;
-  min-width: 128px;
-}
-
-.status-list,
-.compact-list,
-.timeline,
-.work-list,
-.team-list,
-.invite-list,
-.assignment-list {
-  display: grid;
-  gap: 10px;
-}
-
-#dashboardWork {
-  max-height: 430px;
-  overflow: auto;
-  padding-right: 4px;
-}
-
-.access-notice {
-  margin: 14px 0 0;
-  padding: 14px 16px;
-  border: 1px solid rgba(196, 52, 50, 0.25);
-  border-radius: 8px;
-  background: rgba(196, 52, 50, 0.08);
-  color: var(--red);
-  font-size: 13px;
-  font-weight: 850;
-}
-
-.form-stack.is-disabled {
-  opacity: 0.62;
-}
-
-.legacy-report-date {
-  display: none;
-}
-
-.invite-custom-role[hidden] {
-  display: none;
-}
-
-.workspace-settings-box {
-  margin-bottom: 16px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(29, 95, 209, 0.04);
-}
-
-.workspace-settings-box[hidden] {
-  display: none;
-}
-
-.settings-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.team-role-control {
-  min-width: 168px;
-  display: grid;
-  gap: 5px;
-  margin: 0;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 850;
-  text-transform: uppercase;
-}
-
-.team-role-control select {
-  width: 100%;
-  min-height: 38px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  padding: 0 10px;
-}
-
-.person-row,
-.work-card,
-.team-card,
-.assignment-card,
-.invite-row,
-.timeline-item {
-  display: grid;
-  gap: 8px;
-  padding: 13px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfcfd;
-}
-
-.person-row {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-}
-
-.invite-row {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  margin-top: 10px;
-}
-
-.invite-main {
-  min-width: 0;
-}
-
-.invite-actions {
-  justify-content: flex-end;
-}
-
-.person-main {
-  min-width: 0;
-}
-
-.person-main strong,
-.work-card strong,
-.team-card strong,
-.invite-row strong {
-  display: block;
-  overflow-wrap: anywhere;
-}
-
-.meta-line,
-.work-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: #eef2f6;
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.badge.in {
-  background: #dff5eb;
-  color: var(--green);
-}
-
-.badge.break,
-.badge.revision {
-  background: #fff0d6;
-  color: var(--amber);
-}
-
-.badge.out,
-.badge.blocked {
-  background: #ffe2e1;
-  color: var(--red);
-}
-
-.badge.completed {
-  background: #dff5eb;
-  color: var(--green);
-}
-
-.badge.in_progress {
-  background: #e3ebff;
-  color: var(--blue);
-}
-
-.quick-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  justify-content: flex-end;
-}
-
-.quick-actions button {
-  min-width: 44px;
-  min-height: 34px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  font-weight: 800;
-}
-
-.quick-actions button:hover {
-  border-color: var(--blue);
-  color: var(--blue);
-}
-
-.ghost-button:disabled,
-.quick-actions button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.timeline-item {
-  grid-template-columns: 112px minmax(0, 1fr);
-}
-
-.timeline-time {
-  color: var(--muted);
-  font-weight: 800;
-}
-
-.timeline-time small {
-  display: block;
-  margin-top: 3px;
-  font-weight: 700;
-}
-
-.empty {
-  padding: 22px;
-  border: 1px dashed #bcc7d2;
-  border-radius: 8px;
-  color: var(--muted);
-  text-align: center;
-}
-
-.team-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.team-card {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-}
-
-.assignment-card {
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 14px;
-}
-
-.assignment-card-main {
-  min-width: 0;
-}
-
-.assignment-title-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.assignment-title-row strong {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-size: 18px;
-  line-height: 1.25;
-}
-
-.assignment-status {
-  flex: 0 0 auto;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: #edf2f7;
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.assignment-status.in_progress,
-.assignment-status.submitted {
-  background: rgba(29, 95, 209, 0.12);
-  color: var(--blue);
-}
-
-.assignment-status.approved {
-  background: rgba(22, 139, 91, 0.13);
-  color: var(--green);
-}
-
-.assignment-status.revision,
-.assignment-status.help {
-  background: rgba(196, 52, 50, 0.12);
-  color: var(--red);
-}
-
-.chat-layout {
-  display: grid;
-  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
-  gap: 18px;
-  align-items: stretch;
-}
-
-.chat-sidebar-panel,
-.chat-main-panel {
-  min-height: min(680px, calc(100vh - 140px));
-}
-
-.chat-create-panel {
-  margin-bottom: 12px;
-}
-
-.chat-thread-list {
-  display: grid;
-  gap: 8px;
-}
-
-.chat-thread {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
-  width: 100%;
-  min-height: 58px;
-  padding: 9px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--soft-panel);
-  color: var(--ink);
-  text-align: left;
-}
-
-.chat-thread:hover,
-.chat-thread.is-active {
-  border-color: #b8c7d8;
-  background: #eef5ff;
-}
-
-.chat-thread-avatar {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: #111827;
-  color: #ffffff;
-  font-weight: 950;
-}
-
-.chat-thread strong,
-.chat-thread small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-thread small {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.chat-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--line);
-}
-
-.chat-head h3 {
-  margin: 2px 0;
-}
-
-.chat-head small {
-  color: var(--muted);
-  font-weight: 750;
-}
-
-.chat-messages {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  height: min(500px, calc(100vh - 310px));
-  min-height: 320px;
-  overflow-y: auto;
-  padding: 4px 4px 12px;
-}
-
-.chat-message {
-  width: fit-content;
-  max-width: min(620px, 82%);
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 14px 14px 14px 4px;
-  background: var(--soft-panel);
-}
-
-.chat-message.mine {
-  align-self: flex-end;
-  border-color: #bcd7ff;
-  border-radius: 14px 14px 4px 14px;
-  background: #eaf3ff;
-}
-
-.chat-message strong {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 12px;
-}
-
-.chat-message p {
-  margin: 0;
-  line-height: 1.45;
-}
-
-.chat-message small {
-  display: block;
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.chat-compose {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.chat-compose input {
-  min-height: 44px;
-}
-
-.assignment-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.assignment-meta-grid span {
-  min-width: 0;
-  padding: 9px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 850;
-  overflow-wrap: anywhere;
-}
-
-.assignment-meta-grid small {
-  display: block;
-  margin-bottom: 3px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.assignment-notes {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.assignment-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.assignment-actions .ghost-button {
-  min-height: 38px;
-}
-
-.mini-assignment {
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfcfd;
-}
-
-.mini-assignment strong {
-  display: block;
-  margin-bottom: 6px;
-}
-
-@media (max-width: 900px) {
-  .assignment-meta-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .assignment-actions {
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 520px) {
-  .assignment-title-row {
-    display: grid;
-  }
-
-  .assignment-meta-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 860px;
-  background: #ffffff;
-}
-
-th,
-td {
-  padding: 12px;
-  border-bottom: 1px solid var(--line);
-  text-align: left;
-  vertical-align: top;
-}
-
-th {
-  color: var(--muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0;
-}
-
-tr:last-child td {
-  border-bottom: 0;
-}
-
-.toast {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 10;
-  max-width: min(360px, calc(100vw - 40px));
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: #101820;
-  color: #ffffff;
-  box-shadow: var(--shadow);
-  transform: translateY(16px);
-  opacity: 0;
-  pointer-events: none;
-  transition: 180ms ease;
-}
-
-.toast.show {
-  transform: translateY(0);
-  opacity: 1;
-}
-
-.auth-gate {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: none;
-  width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 0;
-  background: #ffffff;
-}
-
-.auth-gate.is-active {
-  display: block;
-}
-
-.auth-landing {
-  width: 100%;
-  max-width: 100vw;
-  min-height: 100vh;
-  padding: 24px clamp(20px, 5vw, 72px) 44px;
-  overflow-x: hidden;
-}
-
-.auth-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  width: 100%;
-  max-width: 1120px;
-  margin: 0 auto;
-}
-
-.auth-brand {
-  padding: 0;
-  color: var(--ink);
-  border-bottom: 0;
-}
-
-.auth-brand .brand-logo {
-  box-shadow: 0 12px 28px rgba(24, 33, 47, 0.16);
-}
-
-.auth-brand p {
-  color: var(--muted);
-}
-
-.auth-nav-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.auth-link-button,
-.auth-dark-button {
-  min-height: 38px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 8px;
-  font-weight: 900;
-}
-
-.auth-link-button {
-  background: #f1f3f5;
-  color: var(--ink);
-}
-
-.auth-dark-button {
-  background: #191d23;
-  color: #ffffff;
-}
-
-.auth-hero {
-  display: grid;
-  grid-template-columns: minmax(320px, 0.95fr) minmax(360px, 0.9fr);
-  gap: clamp(28px, 5vw, 58px);
-  align-items: center;
-  width: 100%;
-  max-width: 1120px;
-  min-width: 0;
-  min-height: calc(100vh - 116px);
-  margin: 0 auto;
-  padding-top: 34px;
-}
-
-.auth-gate.is-auth-page .auth-hero {
-  display: grid;
-  grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 430px);
-  align-content: center;
-}
-
-.auth-copy {
-  min-width: 0;
-  animation: authRise 520ms ease both;
-}
-
-.auth-page-copy,
-.auth-back {
-  display: none;
-}
-
-.auth-gate.is-auth-page .auth-page-copy,
-.auth-gate.is-auth-page .auth-back {
-  display: block;
-}
-
-.auth-gate.is-auth-page .auth-copy,
-.auth-gate.is-auth-page .auth-preview {
-  display: none;
-}
-
-.auth-back {
-  grid-column: 1 / -1;
-  width: max-content;
-  min-height: 40px;
-  padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.auth-page-copy {
-  max-width: 620px;
-  animation: authRise 420ms ease both;
-}
-
-.auth-page-copy h2 {
-  margin: 0;
-  color: #171a1f;
-  font-size: clamp(42px, 5vw, 64px);
-  line-height: 1.04;
-}
-
-.auth-page-copy p {
-  max-width: 560px;
-  color: #4f5b6a;
-  font-size: 18px;
-  line-height: 1.55;
-}
-
-.product-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  margin-bottom: 24px;
-  padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #ffffff;
-  color: #29313c;
-  font-size: 13px;
-  font-weight: 900;
-  box-shadow: 0 8px 24px rgba(24, 33, 47, 0.06);
-}
-
-.auth-copy h2 {
-  max-width: 650px;
-  margin: 0;
-  color: #171a1f;
-  font-size: clamp(42px, 5.2vw, 68px);
-  line-height: 1.04;
-  letter-spacing: 0;
-}
-
-.auth-copy p {
-  max-width: 580px;
-  margin: 20px 0 0;
-  color: #4f5b6a;
-  font-size: 18px;
-  line-height: 1.55;
-}
-
-.auth-points {
-  display: grid;
-  gap: 12px;
-  margin: 24px 0 0;
-  padding: 0;
-  list-style: none;
-  color: #2a3442;
-  font-size: 16px;
-  font-weight: 800;
-}
-
-.auth-points span {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  margin-right: 8px;
-  border-radius: 999px;
-  background: #e8f7ef;
-  color: var(--green);
-}
-
-.hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 34px;
-}
-
-.hero-cta {
-  min-height: 56px;
-  padding: 0 22px;
-  border: 0;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #20252d, #111820);
-  color: #ffffff;
-  font-size: 17px;
-  font-weight: 950;
-  box-shadow: 0 12px 26px rgba(24, 33, 47, 0.2);
-  transition: transform 180ms ease, box-shadow 180ms ease;
-}
-
-.hero-cta:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 32px rgba(24, 33, 47, 0.24);
-}
-
-.hero-actions small {
-  max-width: 150px;
-  color: var(--muted);
-  font-weight: 800;
-  line-height: 1.35;
-}
-
-.auth-preview {
-  min-width: 0;
-  animation: previewFloat 760ms ease both;
-}
-
-.preview-shell {
-  display: grid;
-  grid-template-columns: 170px minmax(0, 1fr);
-  min-height: 410px;
-  border: 1px solid #e7ebef;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #ffffff;
-  box-shadow: 0 28px 70px rgba(24, 33, 47, 0.14);
-  transform-origin: center;
-  animation: previewDrift 5s ease-in-out infinite;
-}
-
-.preview-sidebar {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  padding: 22px 16px;
-  background: #f7f8fa;
-  border-right: 1px solid #e7ebef;
-  color: #697281;
-  font-size: 13px;
-  font-weight: 850;
-}
-
-.preview-sidebar strong {
-  margin-bottom: 8px;
-  color: #111820;
-  font-size: 16px;
-}
-
-.preview-sidebar span {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.preview-main {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  padding: 18px;
-}
-
-.preview-top,
-.preview-row,
-.preview-task {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 10px;
-  padding: 13px;
-  border: 1px solid #edf0f3;
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.preview-top {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.preview-row span {
-  padding: 5px 9px;
-  border-radius: 999px;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.preview-row.done span {
-  background: var(--green);
-}
-
-.preview-row.progress span {
-  background: #1886e6;
-}
-
-.preview-row.review span {
-  background: #8b5cf6;
-}
-
-.preview-row small {
-  color: var(--muted);
-  font-weight: 900;
-}
-
-.preview-task {
-  grid-template-columns: minmax(0, 1fr);
-  margin-top: 12px;
-  background: #f7fbff;
-}
-
-.preview-task span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.auth-panel {
-  align-self: center;
-  display: none;
-  width: min(430px, 100%);
-  max-width: 100%;
-  justify-self: end;
-  padding: 22px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 20px 50px rgba(24, 33, 47, 0.12);
-  animation: authRise 360ms ease both;
-}
-
-.auth-gate.is-auth-page .auth-panel {
-  display: block;
-}
-
-.auth-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 18px;
-  padding: 4px;
-  border-radius: 8px;
-  background: #f1f3f5;
-}
-
-.auth-tabs button {
-  min-height: 38px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 900;
-}
-
-.auth-tabs button.is-active {
-  background: #ffffff;
-  color: var(--ink);
-  box-shadow: 0 4px 12px rgba(24, 33, 47, 0.08);
-}
-
-.auth-panel h3 {
-  margin: 0;
-  font-size: 26px;
-}
-
-.auth-panel > p {
-  margin: 8px 0 18px;
-  color: var(--muted);
-  font-weight: 700;
-  line-height: 1.45;
-}
-
-.auth-switch {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
-  text-align: center;
-}
-
-.auth-switch button {
-  border: 0;
-  background: transparent;
-  color: var(--blue);
-  font-weight: 950;
-}
-
-.auth-message {
-  margin: 0;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-  text-align: center;
-}
-
-@keyframes authRise {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes previewFloat {
-  from {
-    opacity: 0;
-    transform: translateX(18px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-@keyframes previewDrift {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-.admin-records {
-  display: grid;
-  gap: 18px;
-}
-
-.admin-records h4 {
-  margin: 0 0 10px;
-  font-size: 15px;
-}
-
-.admin-list {
-  display: grid;
-  gap: 10px;
-}
-
-.admin-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfcfd;
-}
-
-.admin-item-actions,
-.stacked-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.admin-item strong {
-  display: block;
-}
-
-@media (max-width: 980px) {
-  .auth-hero {
-    grid-template-columns: 1fr;
-    min-height: auto;
-  }
-
-  .auth-panel {
-    justify-self: stretch;
-    width: 100%;
-  }
-
-  .auth-preview {
-    order: 3;
-  }
-
-  .app-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    min-height: auto;
-    padding: 14px;
-  }
-
-  .workspace-menu {
-    position: fixed;
-    top: 90px;
-    left: 14px;
-    right: 14px;
-    width: auto;
-  }
-
-  .brand {
-    padding-bottom: 12px;
-  }
-
-  .nav-tabs {
-    grid-template-columns: repeat(6, minmax(64px, 1fr));
-    gap: 6px;
-    max-width: 100%;
-    overflow-x: auto;
-  }
-
-  .nav-tab {
-    justify-content: center;
-    min-width: 0;
-    min-height: 66px;
-    text-align: center;
-    font-size: 12px;
-  }
-
-  .side-summary {
-    display: none;
-  }
-
-  .main {
-    padding: 18px;
-  }
-
-  .metric-grid,
-  .content-grid,
-  .split-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 620px) {
-  html,
-  body {
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  .auth-gate {
-    width: 100vw;
-  }
-
-  .auth-landing {
-    padding: 14px;
-  }
-
-  .auth-nav {
-    align-items: center;
-    flex-direction: row;
-    gap: 10px;
-  }
-
-  .auth-brand h1 {
-    font-size: 20px;
-  }
-
-  .auth-brand p {
-    font-size: 10px;
-  }
-
-  .auth-nav-actions {
-    gap: 6px;
-  }
-
-  .auth-link-button,
-  .auth-dark-button {
-    min-height: 34px;
-    padding: 0 10px;
-    font-size: 13px;
-  }
-
-  .auth-hero,
-  .auth-gate.is-auth-page .auth-hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
-    width: 100%;
-    min-height: auto;
-    padding-top: 22px;
-  }
-
-  .auth-page-copy {
-    max-width: 100%;
-  }
-
-  .auth-page-copy h2 {
-    font-size: 34px;
-    line-height: 1.08;
-  }
-
-  .auth-page-copy p {
-    font-size: 15px;
-  }
-
-  .auth-copy h2 {
-    font-size: 34px;
-    line-height: 1.08;
-  }
-
-  .auth-copy p {
-    font-size: 16px;
-  }
-
-  .hero-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .hero-actions small {
-    max-width: none;
-  }
-
-  .auth-preview {
-    display: none;
-  }
-
-  .auth-panel {
-    width: 100%;
-    max-width: 100%;
-    justify-self: stretch;
-    padding: 16px;
-  }
-
-  .auth-panel h3 {
-    font-size: 24px;
-  }
-
-  .auth-tabs button,
-  .primary-button,
-  .ghost-button {
-    min-width: 0;
-    white-space: normal;
-  }
-
-  .form-stack input,
-  .form-stack select,
-  .form-stack textarea {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .preview-shell {
-    grid-template-columns: 1fr;
-    min-height: auto;
-  }
-
-  .preview-sidebar {
-    display: none;
-  }
-
-  .preview-top,
-  .preview-row {
-    grid-template-columns: 1fr;
-  }
-
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .topbar h2 {
-    font-size: 26px;
-  }
-
-  .metric-grid,
-  .input-row,
-  .report-filters,
-  .invite-form {
-    grid-template-columns: 1fr;
-  }
-
-  .metric strong {
-    font-size: 26px;
-  }
-
-  .filter-apply-button {
-    width: 100%;
-  }
-
-  .person-row,
-  .team-card,
-  .invite-row,
-  .timeline-item {
-    grid-template-columns: 1fr;
-  }
-
-  .quick-actions,
-  .invite-actions {
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 760px) {
-  html,
-  body {
-    max-width: 100%;
-    overflow-x: hidden;
-  }
-
-  body {
-    background: #f3f6f9;
-    padding-bottom: calc(78px + env(safe-area-inset-bottom));
-  }
-
-  .app-shell {
-    display: block;
-    min-height: 100vh;
-  }
-
-  .sidebar {
-    position: sticky;
-    top: 0;
-    z-index: 30;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
-    min-height: 0;
-    padding: calc(12px + env(safe-area-inset-top)) 14px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: #101820;
-    box-shadow: 0 14px 34px rgba(10, 18, 28, 0.22);
-  }
-
-  .brand {
-    gap: 10px;
-    padding: 0;
-    border-bottom: 0;
-  }
-
-  .brand-mark {
-    width: 42px;
-    height: 42px;
-    grid-template-columns: repeat(2, 13px);
-    grid-template-rows: repeat(2, 13px);
-  }
-
-  .brand-logo {
-    width: 42px;
-    height: 42px;
-    flex-basis: 42px;
-    border-radius: 12px;
-  }
-
-  .brand p {
-    font-size: 10px;
-  }
-
-  .brand h1 {
-    font-size: 21px;
-  }
-
-  .workspace-switcher {
-    width: 100%;
-  }
-
-  .workspace-trigger {
-    min-height: 52px;
-    border-color: rgba(255, 255, 255, 0.12);
-    background: #1a2632;
-  }
-
-  .workspace-avatar {
-    width: 36px;
-    height: 36px;
-  }
-
-  .workspace-menu {
-    position: fixed;
-    top: calc(104px + env(safe-area-inset-top));
-    left: 12px;
-    right: 12px;
-    width: auto;
-    max-height: min(62vh, 520px);
-    overflow-y: auto;
-  }
-
-  .nav-tabs {
-    position: fixed;
-    z-index: 40;
-    right: 10px;
-    bottom: calc(10px + env(safe-area-inset-bottom));
-    left: 10px;
-    display: flex;
-    gap: 4px;
-    padding: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 18px;
-    background: rgba(13, 22, 31, 0.96);
-    box-shadow: 0 18px 44px rgba(8, 15, 24, 0.36);
-    backdrop-filter: blur(18px);
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .nav-tabs::-webkit-scrollbar {
-    display: none;
-  }
-
-  .nav-tab {
-    flex: 1 0 64px;
-    justify-content: center;
-    min-width: 64px;
-    min-height: 48px;
-    padding: 6px 8px;
-    border-radius: 13px;
-    color: #d6e1ec;
-    text-align: center;
-    font-size: 11px;
-    line-height: 1.15;
-  }
-
-  .nav-tab span {
-    display: block;
-    max-width: 76px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .nav-tab.is-active {
-    background: #26394c;
-  }
-
-  .side-summary {
-    display: none;
-  }
-
-  .main {
-    padding: 18px 14px 22px;
-  }
-
-  .topbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-    margin-bottom: 18px;
-  }
-
-  .eyebrow {
-    font-size: 10px;
-    line-height: 1.25;
-  }
-
-  .topbar h2 {
-    margin-top: 2px;
-    font-size: 30px;
-  }
-
-  .topbar-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 46px 46px;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .workspace-select,
-  .file-button,
-  #clearDataBtn {
-    display: none !important;
-  }
-
-  .session-pill {
-    justify-content: center;
-    min-width: 0;
-    min-height: 44px;
-    padding: 0 10px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .icon-button,
-  .profile-trigger {
-    width: 46px;
-    height: 44px;
-  }
-
-  .profile-menu {
-    position: fixed;
-    top: auto;
-    right: 12px;
-    bottom: calc(82px + env(safe-area-inset-bottom));
-    left: 12px;
-    width: auto;
-    max-height: 70vh;
-    overflow-y: auto;
-  }
-
-  .metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    margin-bottom: 14px;
-  }
-
-  .metric {
-    padding: 14px;
-    min-height: 112px;
-  }
-
-  .metric span {
-    font-size: 13px;
-    line-height: 1.25;
-  }
-
-  .metric strong {
-    margin-top: 8px;
-    font-size: 26px;
-  }
-
-  .metric small {
-    font-size: 12px;
-  }
-
-  #metricDay {
-    font-size: 24px;
-  }
-
-  .panel {
-    padding: 14px;
-  }
-
-  .panel-head {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .content-grid,
-  .split-layout,
-  #teamView .split-layout {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 14px;
-  }
-
-  .quick-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .quick-actions button,
-  .primary-button,
-  .ghost-button,
-  .small-button {
-    min-width: 0;
-  }
-
-  .assignment-card,
-  .person-row,
-  .team-card,
-  .invite-row,
-  .work-card,
-  .timeline-item,
-  .admin-item {
-    border-radius: 10px;
-  }
-
-  .assignment-card {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .assignment-actions,
-  .admin-item-actions,
-  .stacked-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
-  }
-
-  .table-wrap {
-    max-width: calc(100vw - 28px);
-    overflow-x: auto;
-  }
-
-  .toast {
-    right: 12px;
-    bottom: calc(92px + env(safe-area-inset-bottom));
-    left: 12px;
-    width: auto;
-  }
-}
-
-@media (max-width: 390px) {
-  .brand h1 {
-    font-size: 19px;
-  }
-
-  .workspace-trigger-copy small {
-    font-size: 10px;
-  }
-
-  .nav-tab {
-    flex-basis: 58px;
-    min-width: 58px;
-    font-size: 10px;
-  }
-
-  .topbar-actions {
-    grid-template-columns: minmax(0, 1fr) 42px 42px;
-  }
-
-  .icon-button,
-  .profile-trigger {
-    width: 42px;
-  }
-
-  .metric-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 900px) {
-  html,
-  body {
-    width: 100% !important;
-    max-width: 100% !important;
-    overflow-x: hidden !important;
-  }
-
-  body {
-    background: #f5f7fa !important;
-    padding-bottom: calc(86px + env(safe-area-inset-bottom)) !important;
-  }
-
-  .app-shell {
-    display: block !important;
-    width: 100% !important;
-    min-height: 100vh !important;
-  }
-
-  .sidebar {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 60 !important;
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 8px !important;
-    min-height: 0 !important;
-    padding: calc(10px + env(safe-area-inset-top)) 12px 10px !important;
-    background: #0e1720 !important;
-    box-shadow: 0 12px 28px rgba(9, 16, 24, 0.24) !important;
-  }
-
-  .brand {
-    display: flex !important;
-    min-height: 42px !important;
-    gap: 9px !important;
-    padding: 0 !important;
-    border: 0 !important;
-  }
-
-  .brand-mark {
-    width: 38px !important;
-    height: 38px !important;
-    grid-template-columns: repeat(2, 12px) !important;
-    grid-template-rows: repeat(2, 12px) !important;
-    gap: 3px !important;
-    padding: 4px !important;
-    border-radius: 10px !important;
-  }
-
-  .brand-logo {
-    width: 38px !important;
-    height: 38px !important;
-    flex-basis: 38px !important;
-    border-radius: 11px !important;
-  }
-
-  .brand p {
-    font-size: 9px !important;
-    line-height: 1 !important;
-  }
-
-  .brand h1 {
-    font-size: 19px !important;
-    line-height: 1.05 !important;
-  }
-
-  .workspace-switcher,
-  .workspace-trigger {
-    width: 100% !important;
-  }
-
-  .workspace-trigger {
-    grid-template-columns: 36px minmax(0, 1fr) 16px !important;
-    min-height: 50px !important;
-    padding: 7px 9px !important;
-    border-radius: 12px !important;
-    background: #192532 !important;
-  }
-
-  .workspace-avatar {
-    width: 36px !important;
-    height: 36px !important;
-    border-radius: 10px !important;
-    font-size: 15px !important;
-  }
-
-  .workspace-trigger-copy strong {
-    font-size: 15px !important;
-  }
-
-  .workspace-trigger-copy small {
-    font-size: 10px !important;
-  }
-
-  .workspace-menu {
-    position: fixed !important;
-    top: calc(104px + env(safe-area-inset-top)) !important;
-    right: 12px !important;
-    left: 12px !important;
-    width: auto !important;
-    max-height: 62vh !important;
-    overflow-y: auto !important;
-    border-radius: 16px !important;
-  }
-
-  .nav-tabs {
-    position: fixed !important;
-    z-index: 80 !important;
-    top: auto !important;
-    right: 10px !important;
-    bottom: calc(10px + env(safe-area-inset-bottom)) !important;
-    left: 10px !important;
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(48px, 1fr)) !important;
-    gap: 4px !important;
-    width: auto !important;
-    max-width: none !important;
-    padding: 7px !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    border-radius: 20px !important;
-    background: rgba(11, 20, 29, 0.98) !important;
-    box-shadow: 0 18px 44px rgba(9, 15, 24, 0.38) !important;
-    overflow: hidden !important;
-  }
-
-  .nav-tab {
-    display: grid !important;
-    place-items: center !important;
-    min-width: 0 !important;
-    min-height: 50px !important;
-    padding: 5px 4px !important;
-    border-radius: 15px !important;
-    color: #c8d4df !important;
-    font-size: 0 !important;
-    line-height: 1 !important;
-    text-align: center !important;
-  }
-
-  .nav-tab span {
-    display: grid !important;
-    place-items: center !important;
-    max-width: 100% !important;
-    overflow: visible !important;
-    font-size: 0 !important;
-  }
-
-  .nav-tab span::before {
-    display: block !important;
-    margin-bottom: 4px !important;
-    font-size: 18px !important;
-    line-height: 1 !important;
-  }
-
-  .nav-tab span::after {
-    display: block !important;
-    overflow: hidden !important;
-    width: 100% !important;
-    color: inherit !important;
-    font-size: 9px !important;
-    font-weight: 850 !important;
-    line-height: 1.05 !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-  .nav-tab[data-view="dashboard"] span::before { content: "⌂"; }
-  .nav-tab[data-view="dashboard"] span::after { content: "Home"; }
-  .nav-tab[data-view="attendance"] span::before { content: "◷"; }
-  .nav-tab[data-view="attendance"] span::after { content: "Time"; }
-  .nav-tab[data-view="work"] span::before { content: "✓"; }
-  .nav-tab[data-view="work"] span::after { content: "Work"; }
-  .nav-tab[data-view="team"] span::before { content: "◌"; }
-  .nav-tab[data-view="team"] span::after { content: "Team"; }
-  .nav-tab[data-view="assignments"] span::before { content: "▣"; }
-  .nav-tab[data-view="assignments"] span::after { content: "Tasks"; }
-  .nav-tab[data-view="chat"] span::before { content: "✉"; }
-  .nav-tab[data-view="chat"] span::after { content: "Chat"; }
-  .nav-tab[data-view="reports"] span::before { content: "▤"; }
-  .nav-tab[data-view="reports"] span::after { content: "Reports"; }
-  .nav-tab[data-view="admin"] span::before { content: "⚙"; }
-  .nav-tab[data-view="admin"] span::after { content: "Admin"; }
-
-  .nav-tab.is-active {
-    background: #223548 !important;
-    color: #ffffff !important;
-  }
-
-  .side-summary {
-    display: none !important;
-  }
-
-  .main {
-    width: 100% !important;
-    padding: 18px 14px 24px !important;
-  }
-
-  .topbar {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 12px !important;
-    margin-bottom: 16px !important;
-  }
-
-  .eyebrow {
-    font-size: 10px !important;
-    line-height: 1.2 !important;
-  }
-
-  .topbar h2 {
-    font-size: 28px !important;
-    line-height: 1.05 !important;
-  }
-
-  .topbar-actions {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 44px 44px !important;
-    gap: 8px !important;
-    width: 100% !important;
-  }
-
-  .workspace-select,
-  .file-button,
-  #clearDataBtn {
-    display: none !important;
-  }
-
-  .session-pill {
-    justify-content: center !important;
-    min-width: 0 !important;
-    min-height: 44px !important;
-    padding: 0 10px !important;
-    overflow: hidden !important;
-    border-radius: 12px !important;
-    font-size: 12px !important;
-    text-overflow: ellipsis !important;
-    white-space: nowrap !important;
-  }
-
-  .icon-button,
-  .profile-trigger {
-    width: 44px !important;
-    height: 44px !important;
-    border-radius: 12px !important;
-  }
-
-  .profile-avatar {
-    width: 30px !important;
-    height: 30px !important;
-    font-size: 13px !important;
-  }
-
-  .profile-menu {
-    position: fixed !important;
-    z-index: 120 !important;
-    top: auto !important;
-    right: 12px !important;
-    bottom: calc(84px + env(safe-area-inset-bottom)) !important;
-    left: 12px !important;
-    width: auto !important;
-    max-width: none !important;
-    max-height: 68vh !important;
-    overflow-y: auto !important;
-    padding: 14px !important;
-    border-radius: 18px !important;
-    transform: none !important;
-  }
-
-  .profile-menu-item {
-    min-height: 44px !important;
-    font-size: 14px !important;
-  }
-
-  .metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px !important;
-  }
-
-  .metric,
-  .panel {
-    border-radius: 14px !important;
-    box-shadow: 0 10px 26px rgba(24, 33, 47, 0.07) !important;
-  }
-
-  .metric {
-    min-height: 104px !important;
-    padding: 14px !important;
-  }
-
-  .metric span {
-    font-size: 12px !important;
-    line-height: 1.25 !important;
-  }
-
-  .metric strong {
-    margin-top: 8px !important;
-    font-size: 25px !important;
-  }
-
-  #metricDay {
-    font-size: 22px !important;
-  }
-
-  .chat-layout {
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 12px !important;
-  }
-
-  .chat-sidebar-panel,
-  .chat-main-panel {
-    min-height: auto !important;
-  }
-
-  .chat-thread-list {
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(190px, 74vw);
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-
-  .chat-messages {
-    height: 48vh;
-    min-height: 300px;
-  }
-
-  .chat-message {
-    max-width: 90%;
-  }
-
-  .chat-compose {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 380px) {
-  .nav-tab span::after {
-    font-size: 8px !important;
-  }
-
-  .metric-grid {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-}
-
-/* Avantex Flow premium interface pass */
-:root {
-  --ink: #101828;
-  --muted: #667085;
-  --line: #d8e0ea;
-  --bg: #f4f7fb;
-  --panel: rgba(255, 255, 255, 0.94);
-  --soft-panel: #f8fafc;
-  --blue: #1467ff;
-  --green: #11a97d;
-  --amber: #c17a05;
-  --red: #d23b3b;
-  --violet: #6f55d9;
-  --sidebar-bg: #08111c;
-  --sidebar-panel: rgba(255, 255, 255, 0.075);
-  --sidebar-line: rgba(255, 255, 255, 0.12);
-  --shadow: 0 18px 50px rgba(16, 24, 40, 0.09);
-  --shadow-soft: 0 8px 24px rgba(16, 24, 40, 0.06);
-  --focus-ring: 0 0 0 4px rgba(20, 103, 255, 0.14);
-}
-
-:root[data-theme="dark"] {
-  --ink: #f2f7ff;
-  --muted: #9aa8ba;
-  --line: #263446;
-  --bg: #0b1118;
-  --panel: rgba(17, 26, 37, 0.94);
-  --soft-panel: #101923;
-  --sidebar-bg: #070d15;
-  --sidebar-panel: rgba(255, 255, 255, 0.07);
-  --sidebar-line: rgba(255, 255, 255, 0.1);
-  --shadow: 0 22px 54px rgba(0, 0, 0, 0.28);
-  --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.22);
-}
-
-body {
-  background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 34%, #eef3f8 100%);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
-
-:root[data-theme="dark"] body {
-  background: linear-gradient(180deg, #0d151f 0%, var(--bg) 42%, #080d13 100%);
-}
-
-button,
-input,
-select,
-textarea {
-  letter-spacing: 0;
-}
-
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-.app-shell {
-  grid-template-columns: 300px minmax(0, 1fr);
-}
-
-.sidebar {
-  position: sticky;
-  top: 0;
-  overflow: hidden auto;
-  padding: 28px 20px;
-  background: linear-gradient(180deg, rgba(20, 103, 255, 0.12), transparent 210px), var(--sidebar-bg);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.brand {
-  gap: 14px;
-  padding: 4px 2px 22px;
-  border-bottom-color: var(--sidebar-line);
-}
-
-.brand-logo {
-  width: 52px;
-  height: 52px;
-  flex-basis: 52px;
-  border-radius: 14px;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
-}
-
-.brand p {
-  color: #b8cbdf;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.brand h1 {
-  font-size: 22px;
-  letter-spacing: 0;
-}
-
-.workspace-trigger {
-  min-height: 66px;
-  grid-template-columns: 46px minmax(0, 1fr) 20px;
-  padding: 10px 12px;
-  border-color: var(--sidebar-line);
-  border-radius: 14px;
-  background: var(--sidebar-panel);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.workspace-trigger:hover,
-.workspace-trigger[aria-expanded="true"] {
-  background: rgba(255, 255, 255, 0.11);
-}
-
-.workspace-avatar,
-.profile-avatar {
-  border-radius: 12px;
-  background: linear-gradient(135deg, #12c8a8, #126dff);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-
-.workspace-avatar {
-  width: 46px;
-  height: 46px;
-}
-
-.workspace-menu,
-.profile-menu {
-  border-radius: 16px;
-  border-color: rgba(255, 255, 255, 0.14);
-  background: #0b121b;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
-}
-
-.workspace-menu-actions button,
-.workspace-create-button,
-.workspace-option,
-.profile-menu-item {
-  border-radius: 12px;
-}
-
-.workspace-option-row {
-  border-radius: 14px;
-}
-
-.workspace-more-button {
-  border-radius: 10px;
-}
-
-.nav-tabs {
-  gap: 8px;
-}
-
-.nav-tab {
-  position: relative;
-  min-height: 48px;
-  padding: 0 16px;
-  border-radius: 14px;
-  color: #c8d5e4;
-  background: transparent;
-  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
-}
-
-.nav-tab::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 12px;
-  bottom: 12px;
-  width: 3px;
-  border-radius: 999px;
-  background: transparent;
-}
-
-.nav-tab:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.nav-tab.is-active {
-  color: #ffffff;
-  background: rgba(20, 103, 255, 0.18);
-}
-
-.nav-tab.is-active::before {
-  background: #29d3ff;
-}
-
-.side-summary {
-  margin-top: auto;
-  padding: 18px;
-  border: 1px solid var(--sidebar-line);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.075);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.main {
-  padding: 30px 34px 48px;
-  background: transparent;
-}
-
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 12;
-  margin: -30px -34px 28px;
-  padding: 24px 34px 18px;
-  background: rgba(244, 247, 251, 0.88);
-  border-bottom: 1px solid rgba(216, 224, 234, 0.65);
-  backdrop-filter: blur(16px);
-}
-
-:root[data-theme="dark"] .topbar {
-  background: rgba(11, 17, 24, 0.88);
-  border-bottom-color: rgba(38, 52, 70, 0.75);
-}
-
-.eyebrow,
-.section-kicker {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.topbar h2 {
-  margin-top: 4px;
-  font-size: clamp(28px, 3vw, 42px);
-  letter-spacing: 0;
-}
-
-.topbar-actions {
-  gap: 10px;
-}
-
-.workspace-select,
-.session-pill,
-.icon-button,
-.profile-trigger,
-.small-button,
-.primary-button,
-.ghost-button {
-  border-radius: 12px;
-}
-
-.workspace-select,
-.session-pill,
-.icon-button,
-.profile-trigger {
-  min-height: 48px;
-  border-color: var(--line);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: var(--shadow-soft);
-}
-
-:root[data-theme="dark"] .workspace-select,
-:root[data-theme="dark"] .session-pill,
-:root[data-theme="dark"] .icon-button,
-:root[data-theme="dark"] .profile-trigger {
-  background: rgba(17, 26, 37, 0.86);
-}
-
-.profile-trigger {
-  width: 54px;
-}
-
-.profile-avatar {
-  width: 38px;
-  height: 38px;
-  background: #08111c;
-}
-
-.profile-online-dot {
-  right: 7px;
-  bottom: 7px;
-  border-width: 2px;
-}
-
-.metric-grid {
-  grid-template-columns: repeat(7, minmax(150px, 1fr));
-  gap: 14px;
-  margin-bottom: 22px;
-}
-
-.metric,
-.panel {
-  border-color: rgba(216, 224, 234, 0.9);
-  border-radius: 18px;
-  background: var(--panel);
-  box-shadow: var(--shadow-soft);
-}
-
-.metric {
-  position: relative;
-  min-height: 118px;
-  padding: 22px 22px 20px;
-  overflow: hidden;
-}
-
-.metric::after {
-  content: "";
-  position: absolute;
-  inset: auto 18px 16px auto;
-  width: 34px;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #1467ff, #20d3c2);
-  opacity: 0.58;
-}
-
-.metric span {
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 850;
-}
-
-.metric strong {
-  margin-top: 10px;
-  color: var(--ink);
-  font-size: clamp(28px, 2.25vw, 38px);
-  line-height: 1;
-  overflow-wrap: normal;
-  word-break: normal;
-  hyphens: none;
-}
-
-.metric small {
-  margin-top: 8px;
-  color: var(--muted);
-  font-weight: 850;
-}
-
-#metricDay {
-  font-size: clamp(30px, 2.2vw, 40px);
-  white-space: nowrap;
-}
-
-#metricHours {
-  font-size: clamp(30px, 2.15vw, 40px);
-  line-height: 1.08;
-  white-space: normal;
-  max-width: 100%;
-  text-wrap: balance;
-}
-
-.metric span {
-  min-height: 34px;
-}
-
-.content-grid,
-.split-layout,
-.team-layout,
-.admin-grid {
-  gap: 22px;
-}
-
-.panel {
-  padding: 24px;
-}
-
-.content-grid {
-  grid-template-columns: minmax(0, 1.7fr) minmax(360px, 0.9fr);
-  align-items: start;
-}
-
-.content-grid .panel.wide {
-  min-height: 330px;
-}
-
-.content-grid .panel:not(.wide) {
-  min-height: 260px;
-}
-
-.panel.wide {
-  min-width: 0;
-}
-
-.panel-head {
-  gap: 14px;
-  margin-bottom: 20px;
-}
-
-.panel h3 {
-  margin-top: 4px;
-  font-size: 23px;
-  letter-spacing: 0;
-}
-
-.status-list,
-.compact-list,
-.timeline,
-.team-list,
-.assignment-list {
-  gap: 12px;
-}
-
-.person-row,
-.work-card,
-.team-card,
-.assignment-card,
-.invite-row,
-.timeline-item,
-.mini-assignment {
-  border-color: rgba(216, 224, 234, 0.9);
-  border-radius: 16px;
-  background: rgba(248, 250, 252, 0.78);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
-}
-
-.person-row {
-  min-height: 76px;
-  padding: 16px 18px;
-}
-
-.person-main strong,
-.work-card strong,
-.team-card strong,
-.assignment-card strong {
-  letter-spacing: 0;
-}
-
-:root[data-theme="dark"] .person-row,
-:root[data-theme="dark"] .work-card,
-:root[data-theme="dark"] .team-card,
-:root[data-theme="dark"] .assignment-card,
-:root[data-theme="dark"] .invite-row,
-:root[data-theme="dark"] .timeline-item,
-:root[data-theme="dark"] .mini-assignment {
-  background: rgba(16, 25, 35, 0.86);
-  box-shadow: none;
-}
-
-.badge {
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.badge.in,
-.badge.completed {
-  background: rgba(17, 169, 125, 0.14);
-  color: var(--green);
-}
-
-.badge.break,
-.badge.in_progress {
-  background: rgba(193, 122, 5, 0.14);
-  color: var(--amber);
-}
-
-.badge.out,
-.badge.blocked {
-  background: rgba(210, 59, 59, 0.13);
-  color: var(--red);
-}
-
-.empty {
-  border-radius: 16px;
-  border-color: rgba(145, 158, 176, 0.32);
-  background: rgba(248, 250, 252, 0.56);
-}
-
-.form-stack input,
-.form-stack select,
-.form-stack textarea,
-.filter-grid input,
-.filter-grid select,
-.report-table-wrap {
-  border-radius: 12px;
-}
-
-.primary-button {
-  border: 0;
-  background: linear-gradient(135deg, #1467ff, #0abfc5);
-  color: #ffffff;
-  box-shadow: 0 14px 28px rgba(20, 103, 255, 0.2);
-}
-
-.primary-button:hover {
-  transform: translateY(-1px);
-}
-
-.small-button,
-.ghost-button {
-  border-color: var(--line);
-  background: rgba(255, 255, 255, 0.78);
-}
-
-:root[data-theme="dark"] .small-button,
-:root[data-theme="dark"] .ghost-button {
-  background: rgba(17, 26, 37, 0.86);
-}
-
-.chat-layout {
-  gap: 22px;
-}
-
-.chat-sidebar-panel,
-.chat-main-panel {
-  border-radius: 18px;
-}
-
-.chat-thread,
-.direct-chat-button {
-  border-radius: 14px;
-}
-
-.chat-message {
-  border-radius: 16px;
-}
-
-.toast {
-  border-radius: 16px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
-}
-
-#teamView .split-layout {
-  grid-template-columns: minmax(420px, 0.85fr) minmax(0, 1.4fr);
-  align-items: start;
-}
-
-#teamView .manual-member-panel {
-  display: none !important;
-}
-
-#teamView .panel:first-child {
-  position: sticky;
-  top: 120px;
-}
-
-.invite-form {
-  grid-template-columns: minmax(0, 1fr) 180px;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid rgba(216, 224, 234, 0.85);
-  border-radius: 16px;
-  background: rgba(248, 250, 252, 0.72);
-}
-
-.invite-form label:first-child {
-  grid-column: 1 / -1;
-}
-
-.invite-form .primary-button {
-  min-height: 48px;
-  align-self: end;
-  white-space: nowrap;
-}
-
-.invite-custom-role {
-  grid-column: 1 / -1;
-}
-
-:root[data-theme="dark"] .invite-form {
-  background: rgba(16, 25, 35, 0.72);
-}
-
-.invite-list {
-  margin-top: 16px;
-}
-
-.invite-row {
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 12px 14px;
-  align-items: center;
-  padding: 14px;
-}
-
-.invite-actions {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.team-list {
-  gap: 14px;
-}
-
-.team-card {
-  display: grid;
-  grid-template-columns: minmax(300px, 1.25fr) minmax(160px, 0.6fr) 190px;
-  align-items: center;
-  gap: 16px;
-  min-height: 116px;
-  padding: 16px;
-}
-
-.team-member-profile {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
-.team-avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #1467ff, #16c7b8);
-  color: #ffffff;
-  font-size: 18px;
-  font-weight: 950;
-  text-transform: uppercase;
-  box-shadow: 0 12px 24px rgba(20, 103, 255, 0.18);
-}
-
-.invite-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-}
-
-.team-member-copy {
-  min-width: 0;
-}
-
-.team-member-copy strong,
-.invite-main strong {
-  font-size: 18px;
-  line-height: 1.2;
-}
-
-.role-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: rgba(20, 103, 255, 0.1);
-  color: var(--blue);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.team-member-pulse {
-  display: grid;
-  gap: 8px;
-  justify-items: start;
-}
-
-.team-actions {
-  display: grid;
-  grid-template-columns: 1fr;
-  align-items: center;
-  justify-content: stretch;
-  gap: 8px;
-}
-
-.team-actions .ghost-button {
-  min-height: 40px;
-  padding: 0 13px;
-  width: 100%;
-}
-
-.team-role-control {
-  min-width: 0;
-}
-
-.team-role-control span {
-  display: none;
-}
-
-.team-role-control select {
-  min-height: 40px;
-  border-radius: 12px;
-}
-
-@media (min-width: 901px) and (max-width: 1320px) {
-  #teamView .split-layout {
-    grid-template-columns: 1fr;
-  }
-
-  #teamView .panel:first-child {
-    position: static;
-  }
-
-  .invite-form {
-    grid-template-columns: minmax(0, 1fr) 180px auto;
-  }
-
-  .invite-form label:first-child {
-    grid-column: auto;
-  }
-}
-
-@media (max-width: 1180px) {
-  .metric-grid {
-    grid-template-columns: repeat(4, minmax(160px, 1fr)) !important;
-  }
-}
-
-@media (min-width: 1181px) and (max-width: 1500px) {
-  .metric-grid {
-    grid-template-columns: repeat(4, minmax(170px, 1fr)) !important;
-  }
-}
-
-@media (max-width: 900px) {
-  body {
-    padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px));
-  }
-
-  .app-shell {
-    display: block;
-  }
-
-  .sidebar {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 30 !important;
-    min-height: 0 !important;
-    padding: calc(14px + env(safe-area-inset-top, 0px)) 14px 12px !important;
-    overflow: visible !important;
-    border-right: 0;
-    border-bottom: 1px solid var(--sidebar-line);
-  }
-
-  .brand {
-    display: grid !important;
-    grid-template-columns: 42px minmax(0, 1fr);
-    padding: 0 0 12px !important;
-  }
-
-  .brand-logo {
-    width: 42px !important;
-    height: 42px !important;
-    flex-basis: 42px !important;
-    border-radius: 12px !important;
-  }
-
-  .brand p {
-    font-size: 10px !important;
-  }
-
-  .brand h1 {
-    font-size: 19px !important;
-  }
-
-  .workspace-switcher {
-    margin-top: 10px;
-  }
-
-  .workspace-trigger {
-    min-height: 58px !important;
-    grid-template-columns: 42px minmax(0, 1fr) 18px !important;
-    border-radius: 14px !important;
-  }
-
-  .workspace-avatar {
-    width: 42px !important;
-    height: 42px !important;
-  }
-
-  .nav-tabs {
-    position: fixed !important;
-    z-index: 60 !important;
-    left: 12px !important;
-    right: 12px !important;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important;
-    display: grid !important;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(58px, 1fr);
-    gap: 4px !important;
-    min-height: 66px !important;
-    padding: 8px !important;
-    overflow-x: auto !important;
-    border: 1px solid rgba(216, 224, 234, 0.82);
-    border-radius: 22px !important;
-    background: rgba(255, 255, 255, 0.94) !important;
-    box-shadow: 0 18px 48px rgba(16, 24, 40, 0.18);
-    backdrop-filter: blur(18px);
-  }
-
-  :root[data-theme="dark"] .nav-tabs {
-    border-color: rgba(38, 52, 70, 0.9);
-    background: rgba(12, 18, 26, 0.95) !important;
-  }
-
-  .nav-tab {
-    min-width: 58px !important;
-    min-height: 50px !important;
-    padding: 0 8px !important;
-    color: var(--muted) !important;
-    border-radius: 16px !important;
-    background: transparent !important;
-  }
-
-  .nav-tab::before {
-    display: none;
-  }
-
-  .nav-tab span {
-    display: grid !important;
-    place-items: center;
-    gap: 3px;
-    font-size: 0 !important;
-  }
-
-  .nav-tab span::after {
-    color: inherit !important;
-    font-size: 10px !important;
-    font-weight: 900;
-    line-height: 1;
-  }
-
-  .nav-tab.is-active {
-    color: #ffffff !important;
-    background: linear-gradient(135deg, #1467ff, #0bbec5) !important;
-    box-shadow: 0 10px 22px rgba(20, 103, 255, 0.24);
-  }
-
-  .side-summary {
-    display: none !important;
-  }
-
-  .main {
-    padding: 18px 14px 24px !important;
-  }
-
-  .topbar {
-    position: static !important;
-    display: block !important;
-    margin: 0 0 16px !important;
-    padding: 0 !important;
-    border: 0 !important;
-    background: transparent !important;
-    backdrop-filter: none !important;
-  }
-
-  .topbar h2 {
-    font-size: 34px !important;
-  }
-
-  .topbar-actions {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 48px 54px !important;
-    gap: 8px !important;
-    margin-top: 16px !important;
-  }
-
-  .workspace-select,
-  .file-button,
-  #clearDataBtn {
-    display: none !important;
-  }
-
-  .session-pill {
-    justify-content: center;
-    min-width: 0 !important;
-    padding: 0 10px !important;
-  }
-
-  .icon-button,
-  .profile-trigger {
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-
-  .profile-menu {
-    position: fixed !important;
-    inset: auto 12px calc(86px + env(safe-area-inset-bottom, 0px)) 12px !important;
-    width: auto !important;
-    max-height: min(520px, calc(100vh - 150px)) !important;
-    overflow: auto !important;
-  }
-
-  .metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 12px !important;
-  }
-
-  .metric,
-  .panel {
-    border-radius: 18px !important;
-  }
-
-  .metric {
-    min-height: 116px !important;
-    padding: 18px !important;
-  }
-
-  .metric span {
-    font-size: 13px !important;
-  }
-
-  .metric strong {
-    font-size: 30px !important;
-  }
-
-  #metricDay {
-    font-size: 32px !important;
-  }
-
-  #metricDay,
-  #metricHours {
-    white-space: normal;
-  }
-
-  .panel {
-    padding: 18px !important;
-  }
-
-  .panel h3 {
-    font-size: 22px !important;
-  }
-
-  #teamView .split-layout {
-    grid-template-columns: 1fr !important;
-  }
-
-  #teamView .panel:first-child {
-    position: static;
-  }
-
-  .invite-form {
-    grid-template-columns: 1fr !important;
-  }
-
-  .team-card {
-    grid-template-columns: 1fr;
-    align-items: stretch;
-  }
-
-  .team-member-pulse {
-    justify-items: stretch;
-  }
-
-  .team-actions,
-  .invite-actions {
-    grid-template-columns: 1fr;
-    display: grid;
-    justify-content: stretch;
-  }
-
-  .team-role-control {
-    min-width: 0;
-  }
-
-  .team-actions .ghost-button,
-  .invite-actions .ghost-button {
-    width: 100%;
-  }
-}
-
-@media (max-width: 480px) {
-  .metric-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .metric {
-    min-height: 102px !important;
-  }
-
-  .metric::after {
-    width: 28px;
-  }
-
-  .topbar h2 {
-    font-size: 31px !important;
-  }
-
-  .eyebrow {
-    font-size: 10px !important;
-  }
-}
-
-/* Workflow pages functional polish */
-#attendanceView .split-layout,
-#workView .split-layout,
-#assignmentsView .split-layout {
-  grid-template-columns: minmax(360px, 0.75fr) minmax(0, 1.4fr);
-  align-items: start;
-}
-
-#attendanceView .panel:first-child,
-#workView .panel:first-child,
-#assignmentsView .assignment-admin-panel {
-  position: sticky;
-  top: 120px;
-}
-
-#attendanceForm,
-#workForm,
-#assignmentForm {
-  padding: 16px;
-  border: 1px solid rgba(216, 224, 234, 0.85);
-  border-radius: 18px;
-  background: rgba(248, 250, 252, 0.72);
-}
-
-:root[data-theme="dark"] #attendanceForm,
-:root[data-theme="dark"] #workForm,
-:root[data-theme="dark"] #assignmentForm {
-  background: rgba(16, 25, 35, 0.72);
-}
-
-#attendanceForm .primary-button,
-#workForm .primary-button,
-#assignmentForm .primary-button {
-  min-height: 48px;
-}
-
-.timeline-item {
-  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
-  align-items: center;
-  padding: 16px;
-}
-
-.timeline-time {
-  color: var(--ink);
-  font-weight: 950;
-}
-
-.timeline-time small {
-  display: block;
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.work-card {
-  padding: 16px;
-}
-
-.work-meta {
-  margin-top: 8px;
-}
-
-.assignment-list {
-  gap: 14px;
-}
-
-.assignment-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 170px;
-  gap: 18px;
-  padding: 18px;
-}
-
-.assignment-title-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.assignment-title-row strong {
-  font-size: 20px;
-  line-height: 1.25;
-}
-
-.assignment-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: rgba(20, 103, 255, 0.1);
-  color: var(--blue);
-  font-size: 12px;
-  font-weight: 950;
-  white-space: nowrap;
-}
-
-.assignment-status.approved {
-  background: rgba(17, 169, 125, 0.14);
-  color: var(--green);
-}
-
-.assignment-status.revision,
-.assignment-status.help {
-  background: rgba(193, 122, 5, 0.14);
-  color: var(--amber);
-}
-
-.assignment-status.submitted {
-  background: rgba(111, 85, 217, 0.14);
-  color: var(--violet);
-}
-
-.assignment-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(110px, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.assignment-meta-grid span {
-  display: grid;
-  gap: 3px;
-  padding: 10px;
-  border: 1px solid rgba(216, 224, 234, 0.76);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.56);
-  color: var(--ink);
-  font-weight: 850;
-}
-
-:root[data-theme="dark"] .assignment-meta-grid span {
-  background: rgba(17, 26, 37, 0.62);
-}
-
-.assignment-meta-grid small {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 950;
-  text-transform: uppercase;
-}
-
-.assignment-notes {
-  margin-top: 14px;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(20, 103, 255, 0.06);
-  color: var(--muted);
-  font-weight: 750;
-}
-
-.assignment-actions {
-  display: grid;
-  align-content: start;
-  gap: 8px;
-}
-
-.assignment-actions .ghost-button {
-  width: 100%;
-  min-height: 40px;
-}
-
-.chat-layout {
-  grid-template-columns: minmax(280px, 0.34fr) minmax(0, 1fr);
-}
-
-.chat-sidebar-panel,
-.chat-main-panel {
-  min-height: 660px;
-}
-
-.chat-thread-list {
-  display: grid;
-  gap: 10px;
-}
-
-.chat-thread {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  width: 100%;
-  padding: 12px;
-  border: 1px solid rgba(216, 224, 234, 0.78);
-  background: rgba(248, 250, 252, 0.72);
-  text-align: left;
-}
-
-.chat-thread.is-active {
-  border-color: rgba(20, 103, 255, 0.35);
-  background: rgba(20, 103, 255, 0.09);
-}
-
-.chat-thread-avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
-  background: linear-gradient(135deg, #1467ff, #16c7b8);
-  color: #ffffff;
-  font-weight: 950;
-}
-
-.chat-thread strong,
-.chat-thread small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chat-thread small {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.chat-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.chat-head h3 {
-  margin: 4px 0;
-}
-
-.chat-head small {
-  color: var(--muted);
-  font-weight: 750;
-}
-
-.chat-messages {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 460px;
-  max-height: 58vh;
-  overflow: auto;
-  padding: 16px;
-  border: 1px solid rgba(216, 224, 234, 0.78);
-  border-radius: 18px;
-  background: rgba(248, 250, 252, 0.62);
-}
-
-:root[data-theme="dark"] .chat-messages {
-  background: rgba(16, 25, 35, 0.62);
-}
-
-.chat-message {
-  max-width: min(74%, 680px);
-  padding: 12px 14px;
-  background: #ffffff;
-  border: 1px solid rgba(216, 224, 234, 0.78);
-}
-
-.chat-message.mine {
-  align-self: flex-end;
-  background: linear-gradient(135deg, #1467ff, #0bbec5);
-  color: #ffffff;
-  border-color: transparent;
-}
-
-.chat-message p {
-  margin: 6px 0;
-}
-
-.chat-message small {
-  color: inherit;
-  opacity: 0.72;
-  font-size: 11px;
-}
-
-.chat-compose {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 110px;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.report-filters {
-  padding: 14px;
-  border: 1px solid rgba(216, 224, 234, 0.85);
-  border-radius: 18px;
-  background: rgba(248, 250, 252, 0.72);
-}
-
-.filter-reset-button {
-  align-self: end;
-  min-height: 42px;
-}
-
-.table-wrap {
-  border-radius: 18px;
-  box-shadow: var(--shadow-soft);
-}
-
-table th {
-  color: var(--muted);
-  font-size: 11px;
-  text-transform: uppercase;
-}
-
-table td,
-table th {
-  padding: 13px 12px;
-}
-
-.admin-records {
-  gap: 18px;
-}
-
-.admin-list {
-  display: grid;
-  gap: 10px;
-}
-
-.admin-item {
-  border-radius: 16px;
-  background: rgba(248, 250, 252, 0.74);
-}
-
-@media (max-width: 1100px) {
-  #attendanceView .split-layout,
-  #workView .split-layout,
-  #assignmentsView .split-layout,
-  .chat-layout {
-    grid-template-columns: 1fr;
-  }
-
-  #attendanceView .panel:first-child,
-  #workView .panel:first-child,
-  #assignmentsView .assignment-admin-panel {
-    position: static;
-  }
-
-  .assignment-card {
-    grid-template-columns: 1fr;
-  }
-
-  .assignment-actions {
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  }
-}
-
-@media (max-width: 700px) {
-  .assignment-meta-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .chat-message {
-    max-width: 92%;
-  }
-
-  .chat-compose {
-    grid-template-columns: 1fr;
-  }
-
-  .timeline-item {
-    grid-template-columns: 1fr;
-  }
-}
