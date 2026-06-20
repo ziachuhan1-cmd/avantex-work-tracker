@@ -1,4 +1,4 @@
-const CACHE_NAME = "avantex-flow-refresh-work";
+const CACHE_NAME = "avantex-flow-member-access";
 const APP_SHELL = [
   "/",
   "/index.html",
