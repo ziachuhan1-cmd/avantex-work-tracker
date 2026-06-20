@@ -3765,3 +3765,371 @@ textarea:focus-visible {
     font-size: 10px !important;
   }
 }
+
+/* Workflow pages functional polish */
+#attendanceView .split-layout,
+#workView .split-layout,
+#assignmentsView .split-layout {
+  grid-template-columns: minmax(360px, 0.75fr) minmax(0, 1.4fr);
+  align-items: start;
+}
+
+#attendanceView .panel:first-child,
+#workView .panel:first-child,
+#assignmentsView .assignment-admin-panel {
+  position: sticky;
+  top: 120px;
+}
+
+#attendanceForm,
+#workForm,
+#assignmentForm {
+  padding: 16px;
+  border: 1px solid rgba(216, 224, 234, 0.85);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+:root[data-theme="dark"] #attendanceForm,
+:root[data-theme="dark"] #workForm,
+:root[data-theme="dark"] #assignmentForm {
+  background: rgba(16, 25, 35, 0.72);
+}
+
+#attendanceForm .primary-button,
+#workForm .primary-button,
+#assignmentForm .primary-button {
+  min-height: 48px;
+}
+
+.timeline-item {
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+  align-items: center;
+  padding: 16px;
+}
+
+.timeline-time {
+  color: var(--ink);
+  font-weight: 950;
+}
+
+.timeline-time small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.work-card {
+  padding: 16px;
+}
+
+.work-meta {
+  margin-top: 8px;
+}
+
+.assignment-list {
+  gap: 14px;
+}
+
+.assignment-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 170px;
+  gap: 18px;
+  padding: 18px;
+}
+
+.assignment-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.assignment-title-row strong {
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.assignment-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(20, 103, 255, 0.1);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.assignment-status.approved {
+  background: rgba(17, 169, 125, 0.14);
+  color: var(--green);
+}
+
+.assignment-status.revision,
+.assignment-status.help {
+  background: rgba(193, 122, 5, 0.14);
+  color: var(--amber);
+}
+
+.assignment-status.submitted {
+  background: rgba(111, 85, 217, 0.14);
+  color: var(--violet);
+}
+
+.assignment-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.assignment-meta-grid span {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid rgba(216, 224, 234, 0.76);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.56);
+  color: var(--ink);
+  font-weight: 850;
+}
+
+:root[data-theme="dark"] .assignment-meta-grid span {
+  background: rgba(17, 26, 37, 0.62);
+}
+
+.assignment-meta-grid small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.assignment-notes {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(20, 103, 255, 0.06);
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.assignment-actions {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.assignment-actions .ghost-button {
+  width: 100%;
+  min-height: 40px;
+}
+
+.chat-layout {
+  grid-template-columns: minmax(280px, 0.34fr) minmax(0, 1fr);
+}
+
+.chat-sidebar-panel,
+.chat-main-panel {
+  min-height: 660px;
+}
+
+.chat-thread-list {
+  display: grid;
+  gap: 10px;
+}
+
+.chat-thread {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(216, 224, 234, 0.78);
+  background: rgba(248, 250, 252, 0.72);
+  text-align: left;
+}
+
+.chat-thread.is-active {
+  border-color: rgba(20, 103, 255, 0.35);
+  background: rgba(20, 103, 255, 0.09);
+}
+
+.chat-thread-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #1467ff, #16c7b8);
+  color: #ffffff;
+  font-weight: 950;
+}
+
+.chat-thread strong,
+.chat-thread small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-thread small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.chat-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.chat-head h3 {
+  margin: 4px 0;
+}
+
+.chat-head small {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 460px;
+  max-height: 58vh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid rgba(216, 224, 234, 0.78);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.62);
+}
+
+:root[data-theme="dark"] .chat-messages {
+  background: rgba(16, 25, 35, 0.62);
+}
+
+.chat-message {
+  max-width: min(74%, 680px);
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid rgba(216, 224, 234, 0.78);
+}
+
+.chat-message.mine {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #1467ff, #0bbec5);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.chat-message p {
+  margin: 6px 0;
+}
+
+.chat-message small {
+  color: inherit;
+  opacity: 0.72;
+  font-size: 11px;
+}
+
+.chat-compose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.report-filters {
+  padding: 14px;
+  border: 1px solid rgba(216, 224, 234, 0.85);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.filter-reset-button {
+  align-self: end;
+  min-height: 42px;
+}
+
+.table-wrap {
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+}
+
+table th {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+table td,
+table th {
+  padding: 13px 12px;
+}
+
+.admin-records {
+  gap: 18px;
+}
+
+.admin-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-item {
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.74);
+}
+
+@media (max-width: 1100px) {
+  #attendanceView .split-layout,
+  #workView .split-layout,
+  #assignmentsView .split-layout,
+  .chat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  #attendanceView .panel:first-child,
+  #workView .panel:first-child,
+  #assignmentsView .assignment-admin-panel {
+    position: static;
+  }
+
+  .assignment-card {
+    grid-template-columns: 1fr;
+  }
+
+  .assignment-actions {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .assignment-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chat-message {
+    max-width: 92%;
+  }
+
+  .chat-compose {
+    grid-template-columns: 1fr;
+  }
+
+  .timeline-item {
+    grid-template-columns: 1fr;
+  }
+}
