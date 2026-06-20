@@ -3075,8 +3075,8 @@ textarea:focus-visible {
 }
 
 .metric-grid {
-  grid-template-columns: repeat(7, minmax(138px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  gap: 14px;
   margin-bottom: 22px;
 }
 
@@ -3090,8 +3090,8 @@ textarea:focus-visible {
 
 .metric {
   position: relative;
-  min-height: 132px;
-  padding: 24px;
+  min-height: 118px;
+  padding: 22px 22px 20px;
   overflow: hidden;
 }
 
@@ -3115,14 +3115,34 @@ textarea:focus-visible {
 .metric strong {
   margin-top: 10px;
   color: var(--ink);
-  font-size: clamp(30px, 2.6vw, 42px);
+  font-size: clamp(28px, 2.25vw, 38px);
   line-height: 1;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
 .metric small {
   margin-top: 8px;
   color: var(--muted);
   font-weight: 850;
+}
+
+#metricDay {
+  font-size: clamp(30px, 2.2vw, 40px);
+  white-space: nowrap;
+}
+
+#metricHours {
+  font-size: clamp(30px, 2.15vw, 40px);
+  line-height: 1.08;
+  white-space: normal;
+  max-width: 100%;
+  text-wrap: balance;
+}
+
+.metric span {
+  min-height: 34px;
 }
 
 .content-grid,
@@ -3134,6 +3154,19 @@ textarea:focus-visible {
 
 .panel {
   padding: 24px;
+}
+
+.content-grid {
+  grid-template-columns: minmax(0, 1.7fr) minmax(360px, 0.9fr);
+  align-items: start;
+}
+
+.content-grid .panel.wide {
+  min-height: 330px;
+}
+
+.content-grid .panel:not(.wide) {
+  min-height: 260px;
 }
 
 .panel.wide {
@@ -3170,6 +3203,18 @@ textarea:focus-visible {
   border-radius: 16px;
   background: rgba(248, 250, 252, 0.78);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+}
+
+.person-row {
+  min-height: 76px;
+  padding: 16px 18px;
+}
+
+.person-main strong,
+.work-card strong,
+.team-card strong,
+.assignment-card strong {
+  letter-spacing: 0;
 }
 
 :root[data-theme="dark"] .person-row,
@@ -3269,7 +3314,13 @@ textarea:focus-visible {
 
 @media (max-width: 1180px) {
   .metric-grid {
-    grid-template-columns: repeat(4, minmax(140px, 1fr)) !important;
+    grid-template-columns: repeat(4, minmax(160px, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1181px) and (max-width: 1500px) {
+  .metric-grid {
+    grid-template-columns: repeat(4, minmax(170px, 1fr)) !important;
   }
 }
 
@@ -3467,6 +3518,11 @@ textarea:focus-visible {
 
   #metricDay {
     font-size: 32px !important;
+  }
+
+  #metricDay,
+  #metricHours {
+    white-space: normal;
   }
 
   .panel {
