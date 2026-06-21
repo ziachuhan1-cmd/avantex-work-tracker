@@ -4133,3 +4133,150 @@ table th {
     grid-template-columns: 1fr;
   }
 }
+
+/* Assignments board + chat unread polish */
+.assignment-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.assignment-column {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(216, 224, 234, 0.82);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+:root[data-theme="dark"] .assignment-column {
+  background: rgba(16, 25, 35, 0.72);
+}
+
+.assignment-column-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.assignment-column-head strong {
+  display: block;
+  font-size: 16px;
+}
+
+.assignment-column-head small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.assignment-column-head > span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(20, 103, 255, 0.11);
+  color: var(--blue);
+  font-weight: 950;
+}
+
+.assignment-column-list {
+  display: grid;
+  gap: 10px;
+}
+
+.assignment-column .assignment-card {
+  grid-template-columns: 1fr;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 16px;
+}
+
+.assignment-column .assignment-title-row {
+  display: grid;
+  gap: 8px;
+}
+
+.assignment-column .assignment-title-row strong {
+  font-size: 17px;
+}
+
+.assignment-column .assignment-meta-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.assignment-column .assignment-meta-grid span {
+  padding: 8px;
+}
+
+.assignment-column .assignment-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.priority-chip,
+.due-chip {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.priority-chip.high,
+.priority-chip.urgent,
+.due-chip.overdue {
+  color: var(--red);
+}
+
+.priority-chip.low,
+.due-chip.upcoming {
+  color: var(--green);
+}
+
+.due-chip.today {
+  color: var(--amber);
+}
+
+.chat-thread {
+  position: relative;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+}
+
+.chat-unread {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+@media (max-width: 1320px) {
+  .assignment-board {
+    grid-template-columns: repeat(2, minmax(260px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .assignment-board {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scroll-snap-type: x proximity;
+  }
+
+  .assignment-column {
+    min-width: min(340px, 86vw);
+    scroll-snap-align: start;
+  }
+}
