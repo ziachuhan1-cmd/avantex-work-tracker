@@ -1,4 +1,4 @@
-const CACHE_NAME = "avantex-flow-workflow-upgrade";
+const CACHE_NAME = "avantex-flow-kanban-chat";
 const APP_SHELL = [
   "/",
   "/index.html",
