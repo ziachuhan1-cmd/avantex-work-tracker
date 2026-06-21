@@ -13,6 +13,7 @@ const INVITE_KEY = "avantex-pending-invite";
 const THEME_KEY = "avantex-theme";
 const VIEW_KEY = "avantex-current-view";
 const CHAT_KEY = "avantex-selected-chat";
+const CHAT_READ_KEY = "avantex-chat-read-state";
 
 if (!IS_LOCAL_PREVIEW && window.location.hostname !== CANONICAL_HOST) {
   window.location.replace(`${APP_REDIRECT_URL}${window.location.pathname}${window.location.search}${window.location.hash}`);
@@ -1507,7 +1508,7 @@ async function syncRemoteSilently() {
 
 function startAutoRefresh() {
   if (autoRefreshTimer) return;
-  autoRefreshTimer = window.setInterval(syncRemoteSilently, 20000);
+  autoRefreshTimer = window.setInterval(syncRemoteSilently, 8000);
 }
 
 function stopAutoRefresh() {
@@ -1884,6 +1885,62 @@ function priorityLabel(priority = "normal") {
   }[priority] || priority;
 }
 
+function assignmentWorkflowColumns() {
+  return [
+    { id: "assigned", title: "Assigned", help: "Ready to start" },
+    { id: "in_progress", title: "In Progress", help: "Currently being worked on" },
+    { id: "submitted", title: "Submitted", help: "Waiting for review" },
+    { id: "revision", title: "Revision", help: "Needs changes" },
+    { id: "help", title: "Need Help", help: "Blocked or needs support" },
+    { id: "approved", title: "Approved", help: "Completed and accepted" }
+  ];
+}
+
+function assignmentDueMeta(assignment) {
+  if (!assignment.dueDate) return { label: "No due date", className: "none" };
+  const today = todayKey();
+  if (assignment.dueDate < today && !["approved"].includes(assignment.status)) {
+    return { label: `Overdue | ${formatDateOnly(assignment.dueDate)}`, className: "overdue" };
+  }
+  if (assignment.dueDate === today) return { label: "Due today", className: "today" };
+  return { label: formatDateOnly(assignment.dueDate), className: "upcoming" };
+}
+
+function assignmentCardHtml(assignment, admin) {
+  const person = getPerson(assignment.personId);
+  const due = assignmentDueMeta(assignment);
+  return `
+    <article class="assignment-card ${assignment.status}">
+      <div class="assignment-card-main">
+        <div class="assignment-title-row">
+          <strong>${escapeHtml(assignment.title)}</strong>
+          <span class="assignment-status ${assignment.status}">${assignmentStatusText(assignment.status)}</span>
+        </div>
+        <div class="assignment-meta-grid">
+          <span><small>Member</small>${escapeHtml(person?.name || "Unknown")}</span>
+          <span><small>Type</small>${escapeHtml(assignment.workType)}</span>
+          <span><small>Priority</small><b class="priority-chip ${assignment.priority}">${priorityLabel(assignment.priority)}</b></span>
+          <span><small>Due</small><b class="due-chip ${due.className}">${due.label}</b></span>
+        </div>
+        ${assignment.notes ? `<div class="assignment-notes">${escapeHtml(assignment.notes)}</div>` : ""}
+      </div>
+      <div class="assignment-actions">
+        ${assignment.url ? `<a class="ghost-button" href="${escapeHtml(assignment.url)}" target="_blank" rel="noopener">Open Link</a>` : ""}
+        ${admin ? `
+          <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:approved">Approve</button>
+          <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:revision">Revision</button>
+          <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:in_progress">In Progress</button>
+          <button class="ghost-button danger-text" type="button" data-delete-assignment="${assignment.id}">Delete</button>
+        ` : `
+          <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:in_progress">Start</button>
+          <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:submitted">Submit</button>
+          <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:help">Need Help</button>
+        `}
+      </div>
+    </article>
+  `;
+}
+
 function renderAssignments() {
   if (!$("#assignmentList")) return;
   const admin = canManageWorkspace();
@@ -1894,39 +1951,27 @@ function renderAssignments() {
   $("#assignmentListKicker").textContent = admin ? "Team Work" : "My Work";
   $("#assignmentListTitle").textContent = admin ? "Assigned Work" : "My Assigned Work";
   $("#assignmentList").innerHTML = visibleAssignments.length
-    ? visibleAssignments.map((assignment) => {
-        const person = getPerson(assignment.personId);
-        const due = assignment.dueDate ? formatDateOnly(assignment.dueDate) : "No due date";
-        return `
-          <article class="assignment-card">
-            <div class="assignment-card-main">
-              <div class="assignment-title-row">
-                <strong>${escapeHtml(assignment.title)}</strong>
-                <span class="assignment-status ${assignment.status}">${assignmentStatusText(assignment.status)}</span>
+    ? `
+      <div class="assignment-board">
+        ${assignmentWorkflowColumns().map((column) => {
+          const items = visibleAssignments.filter((assignment) => assignment.status === column.id);
+          return `
+            <section class="assignment-column ${column.id}">
+              <div class="assignment-column-head">
+                <div>
+                  <strong>${column.title}</strong>
+                  <small>${column.help}</small>
+                </div>
+                <span>${items.length}</span>
               </div>
-              <div class="assignment-meta-grid">
-                <span><small>Owner</small>${escapeHtml(person?.name || "Unknown")}</span>
-                <span><small>Type</small>${escapeHtml(assignment.workType)}</span>
-                <span><small>Priority</small>${priorityLabel(assignment.priority)}</span>
-                <span><small>Due</small>${due}</span>
+              <div class="assignment-column-list">
+                ${items.length ? items.map((assignment) => assignmentCardHtml(assignment, admin)).join("") : emptyState("No tasks")}
               </div>
-              ${assignment.notes ? `<div class="assignment-notes">${escapeHtml(assignment.notes)}</div>` : ""}
-            </div>
-            <div class="assignment-actions">
-              ${assignment.url ? `<a class="ghost-button" href="${escapeHtml(assignment.url)}" target="_blank" rel="noopener">Open Link</a>` : ""}
-              ${admin ? `
-                <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:approved">Approve</button>
-                <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:revision">Revision</button>
-                <button class="ghost-button danger-text" type="button" data-delete-assignment="${assignment.id}">Delete</button>
-              ` : `
-                <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:in_progress">Start</button>
-                <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:submitted">Submit</button>
-                <button class="ghost-button" type="button" data-assignment-status="${assignment.id}:help">Need Help</button>
-              `}
-            </div>
-          </article>
-        `;
-      }).join("")
+            </section>
+          `;
+        }).join("")}
+      </div>
+    `
     : emptyState(canManageWorkspace() ? "No work assigned yet." : "No assignments yet.");
 }
 
@@ -1993,6 +2038,30 @@ function lastChatMessage(threadId) {
   return state.chatMessages.filter((message) => message.threadId === threadId).slice(-1)[0] || null;
 }
 
+function chatReadState() {
+  try {
+    return JSON.parse(localStorage.getItem(CHAT_READ_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function unreadChatCount(threadId) {
+  const lastSeen = chatReadState()[threadId] || "";
+  return state.chatMessages.filter((message) =>
+    message.threadId === threadId &&
+    message.senderId !== currentUser?.id &&
+    (!lastSeen || new Date(message.createdAt) > new Date(lastSeen))
+  ).length;
+}
+
+function markChatRead(threadId) {
+  if (!threadId || threadId.startsWith("direct:")) return;
+  const stateMap = chatReadState();
+  stateMap[threadId] = new Date().toISOString();
+  localStorage.setItem(CHAT_READ_KEY, JSON.stringify(stateMap));
+}
+
 function selectedChatThread() {
   if (!selectedChatThreadId) return null;
   if (selectedChatThreadId.startsWith("direct:")) {
@@ -2016,6 +2085,7 @@ function renderChat() {
   if (!selectedChatThreadId && threads.length) selectedChatThreadId = threads[0].id;
   if (selectedChatThreadId && !threads.some((thread) => thread.id === selectedChatThreadId)) selectedChatThreadId = threads[0]?.id || "";
   if (selectedChatThreadId) localStorage.setItem(CHAT_KEY, selectedChatThreadId);
+  markChatRead(selectedChatThreadId);
 
   $("#chatThreadList").innerHTML = threads.length
     ? threads.map((thread) => `
@@ -2025,6 +2095,7 @@ function renderChat() {
           <strong>${escapeHtml(thread.title)}</strong>
           <small>${escapeHtml(thread.lastMessage?.body || thread.meta || "No messages yet")}</small>
         </span>
+        ${unreadChatCount(thread.id) ? `<b class="chat-unread">${unreadChatCount(thread.id)}</b>` : ""}
       </button>
     `).join("")
     : emptyState(canManageWorkspace() ? "No active team members yet." : "No chats available yet.");
@@ -2060,6 +2131,7 @@ function renderChat() {
       }).join("")
     : emptyState("No messages yet. Start the conversation.");
   messageBox.scrollTop = messageBox.scrollHeight;
+  markChatRead(thread.id);
 }
 
 async function ensureDirectChat(personId) {
